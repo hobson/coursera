@@ -92,7 +92,7 @@ def sigmoid(obj):
     
     >>> sigmoid(0.)
     0.5
-    >>> 0 < sigmoid(-1e3) < 1e-3
+    >>> 1-1e-4 < sigmoid(-1e3) < 1e-3
     True
     >>> 0 < sigmoid(+1e10) < 1e-10
     True
@@ -110,7 +110,7 @@ def sigmoid(obj):
         return 1 / (1 + exp(-obj))
     except:
         from traceback import format_exc
-        logger.info('Unable to process argument as if it were a scalar. ' + traceback.format_exc())
+        logger.debug('Unable to process argument as if it were a scalar. ' + format_exc())
     try:
         # if element-wise array math works, then do it
         return 1 / (1 + np.exp(-np.asarray(obj)))
