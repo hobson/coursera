@@ -1,3 +1,8 @@
+import numpy as np
+from math import exp
+import config
+from logging import getLogger
+logger = getLogger(__name__)
 
 def is_num(s):
     try:
@@ -36,11 +41,11 @@ def load(path, verbosity=0):
 
         if all(is_num(h) for h in headers):
             row = headers
-            headers = chr(ord('A') + i % 26) * (int(i / 26) + 1) for i in range(len(headers))
-            table = OrderedDict([headers[i], [row[i]] for i in range(len(headers))]])
+            headers = [chr(ord('A') + i % 26) * (int(i / 26) + 1) for i in range(len(headers))]
+            table = OrderedDict((headers[i], [row[i]]) for i in range(len(headers)))
             row_num = 1
-        else
-            table = OrderedDict([header, [] for header in headers])
+        else:
+            table = OrderedDict((header, []) for header in headers)
             row_num = 0
 
         file_size = os.fstat(fpin.fileno()).st_size
@@ -80,4 +85,39 @@ def load(path, verbosity=0):
         if pbar:
             pbar.finish()
     return table
+
+
+def sigmoid(obj):
+    """1 / (1 + e^-x) for each numerical value with the nested iterable object, `obj`.
+    
+    >>> sigmoid(0.)
+    0.5
+    >>> 0 < sigmoid(-1e3) < 1e-3
+    True
+    >>> 0 < sigmoid(+1e10) < 1e-10
+    True
+    >>> sigmoid(np.zeros(3))
+    array([ 0.5,  0.5,  0.5])
+    >>> sigmoid(np.zeros((2, 3)))
+    array([[ 0.5,  0.5,  0.5],
+           [ 0.5,  0.5,  0.5]])
+    >>> sigmoid(np.zeros((2, 3)))
+    array([[ 0.5,  0.5,  0.5],
+           [ 0.5,  0.5,  0.5]])
+    """
+    try:
+        # if scalar math works then do it
+        return 1 / (1 + exp(-obj))
+    except:
+        from traceback import format_exc
+        logger.info('Unable to process argument as if it were a scalar. ' + traceback.format_exc())
+    try:
+        # if element-wise array math works, then do it
+        return 1 / (1 + np.exp(-np.asarray(obj)))
+    except:
+        pass
+    # Handle any iterables (vectors, sequences, arrays, lists) that weren't handed by np.asarray() above.
+    # TODO Are there any iterables that can't be handled by np.asarray? Doubt it. 
+    return np.array(sigmoid(x) for x in obj)
+
 
