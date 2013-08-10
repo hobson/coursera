@@ -26,7 +26,7 @@ class Basic:
         self.feature_count = defaultdict(Counter)
         # {category: {feature: num_occurences,...}}
         self.category_count = Counter()  # dict of Counters, count of documents binned in each category 
-        self.num_items = 0
+        # self.num_items = 0
 
     def increment_feature_count(self, feature, category):
         "Increase the count for a feature<->category association"
@@ -55,7 +55,7 @@ class Basic:
 
     def num_items(self):
         "Total of the number of items that have been classified"
-        # inefficient?, so cache this, if possible to detect with a dict has changed efficiently
+         # inefficient?, so cache this, if possible to detect with a dict has changed efficiently
         return sum(self.category_count.values())
 
     def categories(self):
@@ -73,9 +73,7 @@ class Basic:
         >>> c.num_items()
         2
         """
-        print self.get_features(string)
         self.feature_count[category] += Counter(self.get_features(string))
         self.category_count[category] += 1
-        print self.category_count
-        print self.feature_count
+
 
