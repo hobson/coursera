@@ -1,4 +1,6 @@
+PyYAML==3.10
 argparse==1.2.1
 matplotlib==1.2.1
+nltk==2.0.4
 numpy==1.7.1
 wsgiref==0.1.2
