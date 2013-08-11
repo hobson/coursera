@@ -20,12 +20,15 @@ get_words.filter_fun = lambda x: len(x) >= get_words.min_len and len(x) <= get_w
 
 
 class Basic:
-    def __init__(self, get_features=get_words, s='', path=''):
+    def __init__(self, get_features=get_words, s='', path='', threshold=None):
         self.get_features = get_features
         # {category: {feature: num_occurences,...}}
         self.feature_count = defaultdict(Counter)
         # {category: total_num_occurrences}
         self.category_count = Counter()  # dict of Counters, count of documents binned in each category 
+        self.threshold = defaultdict(lambda: 1.)
+        if threshold:
+            self.threshold.update(threshold)
         # self.num_items = 0
 
     def feature_probability(self, feature, category):
@@ -79,6 +82,11 @@ class Basic:
          # inefficient?, so cache this, if possible to detect with a dict has changed efficiently
         return sum(self.category_count.values())
 
+    def num_categories(self):
+        "Total of the number of items that have been classified"
+         # inefficient?, so cache this, if possible to detect with a dict has changed efficiently
+        return len(self.category_count)
+
     def categories(self):
         return list(self.category_count)
 
@@ -103,16 +111,43 @@ class Basic:
                     self.train(s, cat)
 
     def __repr__(self):
-        return repr(self.feature_count())
+        return repr(self.feature_count)
 
     def __str__(self):
-        return str(self.feature_count())
+        return str(self.feature_count)
 
 
 class NaiveBayes(Basic):
-    def item_probability(self, item, category):
+
+    def repeated_item_probability(self, item, category):
         item_feature_count = Counter(get_words(item))
         p = 1.
         for f, c in item_feature_count.iteritems():
-            p *= pow(self.weighted_feature_probability(f, category, self.feature_count), c)
+            # this doesn't make sense unless you're trying to compare the probabilities for numerouse vs single occurences of a feature
+            p *= pow(self.weighted_feature_probability(f, category), c)
         return p
+    
+    def item_probability(self, item, category):
+        item_features = set(get_words(item))
+        p = 1.
+        for f in item_features:
+            p *= self.weighted_feature_probability(f, category)
+        return p
+    
+    def category_probability(self, item, category):
+        prior_category_probability = float(self.category_count[category]) / self.num_categories()
+        return self.item_probability(item, category) * prior_category_probability
+
+    def classify(self, item, default=None):
+        max_prob = 0.
+        next_prob = 0.
+        best_match = default
+        for category, count in self.category_count.iteritems():
+            prob = self.item_probability(item, category)
+            if prob > max_prob:
+                next_prob = max_prob
+                max_prob = prob
+                if max_prob > next_prob * self.threshold:
+                    best_match = category
+        return best_match
+
