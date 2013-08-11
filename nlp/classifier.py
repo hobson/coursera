@@ -22,11 +22,32 @@ get_words.filter_fun = lambda x: len(x) >= get_words.min_len and len(x) <= get_w
 class Basic:
     def __init__(self, get_features=get_words, s='', path=''):
         self.get_features = get_features
-        # {feature: total_num_occurrences}
-        self.feature_count = defaultdict(Counter)
         # {category: {feature: num_occurences,...}}
+        self.feature_count = defaultdict(Counter)
+        # {category: total_num_occurrences}
         self.category_count = Counter()  # dict of Counters, count of documents binned in each category 
         # self.num_items = 0
+
+    def feature_probability(self, feature, category):
+        return float(self.feature_count[category][feature]) / self.category_count[category]
+
+    def weighted_feature_probability(self, feature, category, weight=1., assumed_probability=.5):
+        """
+        Use an assumed probability (for 0 occurence features) and weight it to produce a pseudo-probability
+        >>> import examples as e
+        >>> cl = Basic()
+        >>> cl.train(e.training_set)
+        >>> cl.weighted_feature_probability('quick', 'good')
+        0.625
+        >>> cl.weighted_feature_probability('money', 'good')
+        0.25
+        >>> cl.train(e.training_set)
+        >>> cl.weighted_feature_probability('money', 'good')  # doctest: +ELLIPSIS
+        0.1666...
+        """
+
+        total_feature_count = sum((self.feature_count[c][feature] for c in self.category_count))
+        return  (weight * assumed_probability + total_feature_count * self.feature_probability(feature, category)) / (weight + total_feature_count)
 
     def increment_feature_count(self, feature, category):
         "Increase the count for a feature<->category association"
@@ -61,7 +82,7 @@ class Basic:
     def categories(self):
         return list(self.category_count)
 
-    def train(self, string, category):
+    def train(self, string, category=None):
         """Identify features (N-grams or words) in a string and associate that string with a category
         >>> c = Basic()
         >>> c.train('The quick brown fox jumps over the lazy dog', 'good')
@@ -73,7 +94,23 @@ class Basic:
         >>> c.num_items()
         2
         """
-        self.feature_count[category] += Counter(self.get_features(string))
-        self.category_count[category] += 1
+        if isinstance(string, basestring):
+            self.feature_count[category] += Counter(self.get_features(string))
+            self.category_count[category] += 1
+        else:
+            for cat, strings in string.iteritems():
+                for s in strings:
+                    self.train(s, cat)
+
+    def __repr__(self):
+        return repr(self.feature_count())
+
+    def __str__(self):
+        return str(self.feature_count())
 
 
+
+class NaiveBayes(Basic):
+    def docprob(self, item, category):
+        item_feature_count = Counter(get_words(item))
+        self.weighted_probability(item_feature_count, category, self.feature_count)
