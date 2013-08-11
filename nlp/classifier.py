@@ -109,8 +109,10 @@ class Basic:
         return str(self.feature_count())
 
 
-
 class NaiveBayes(Basic):
-    def docprob(self, item, category):
+    def item_probability(self, item, category):
         item_feature_count = Counter(get_words(item))
-        self.weighted_probability(item_feature_count, category, self.feature_count)
+        p = 1.
+        for f, c in item_feature_count.iteritems():
+            p *= pow(self.weighted_feature_probability(f, category, self.feature_count), c)
+        return p
