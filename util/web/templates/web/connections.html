@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load nvd3_tags %}
+
+{% block extra_head %}
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+{% endblock %}
+
+{% block extra_style %}
+    <style>
+    .node {
+      stroke: #fff;
+      stroke-width: 1.5px;
+    }
+    .link {
+      stroke: #999;
+      stroke-opacity: .6;
+    }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <p>Learn how to compose a URL for your graph <a href="{% url 'wiki:root' %}/GraphURLFormat">here</a>.</p>
+
+{% endblock %}
+
+{% block extra_content %}
+<h4>Your URL was parsed to produce this...</h4>
+<pre>var nodes = {{ nodes|safe }}</pre>
+<pre>var edges = {{ edges|safe }}</pre>
+<script>
+    graph = { "nodes": {{ nodes|safe }}, "links": {{ edges|safe }} };
+    console.log('var graph =');
+    console.log(graph);
+
+    var width = 300, height = 200, radius = 6, length = 60, charge = 100;
+
+    var color = d3.scale.category20();
+
+    var force = d3.layout.force()
+        .charge(
+            function (d) {
+                 return -charge / Math.sqrt(d.charge)
+                 }
+            )
+        .linkDistance(
+            function (d) {
+                return length / Math.sqrt(d.value)
+                }
+            )
+        .size([width, height]);
+
+    var svg = d3.select("div.content").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    force
+        .nodes(graph.nodes)
+        .links(graph.links)
+        .start();
+
+    var link = svg.selectAll(".link")
+        .data(graph.links)
+        .enter().append("line")
+            .attr("class", "link")
+            .style("stroke-width", function(d) { return Math.sqrt(d.value); });
+
+    var node = svg.selectAll(".node")
+        .data(graph.nodes)
+        .enter().append("circle")
+            .attr("class", "node")
+            .attr("r", 
+                function (d) {
+                    return radius * Math.sqrt(d.charge)
+                    }
+                )
+        .style("fill", function(d) { return color(d.group); })
+        .call(force.drag);
+
+    node.append("title")
+        .text(function(d) { return d.name; });
+
+    force.on("tick", function() {
+        link.attr("x1", function(d) { return d.source.x; })
+            .attr("y1", function(d) { return d.source.y; })
+            .attr("x2", function(d) { return d.target.x; })
+            .attr("y2", function(d) { return d.target.y; });
+
+        node.attr("cx", function(d) { return d.x; })
+            .attr("cy", function(d) { return d.y; });
+        });
+</script>
+{% endblock %}
+
