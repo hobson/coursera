@@ -240,3 +240,23 @@ def connections(request, edges):
     edge_list, node_list = parse_graph_definition(edges)
     data = {'nodes': json.dumps(node_list), 'edges': json.dumps(edge_list)}
     return render_to_response('call_center/connections.html', data)
+
+def plot(request, chart_type='pieChart', fields='call_rate', model_number='LC60', model='CaseMaster'):
+    """
+    Send data in the context variable "data" for a pie chart (x, y) and a line chart.
+    """    # logger.info('fields = %s' % fields)
+
+    data = {
+        'chart': {
+            'charttype': 'lineWithFocusChart',
+            'chartdata': {'x': [1,2,3], 'y1': [2,3,1], 'y1': [5,4,3]},
+            'chart_title': 'Chart Title',
+            'xlabel': 'x-axis is time',
+            'ylabel': 'y-axis is made up data',
+            'date_tag' : False,
+            'extra': {},
+            },
+        }
+
+    return render_to_response('web/plot.html', data)
+

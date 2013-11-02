@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% load nvd3_tags %}
+
+{% block extra_head %}
+    {% include_nvd3jscss %}
+    {% if chart.charttype == 'pieChart' %}
+        {% load_chart chart.charttype chart.chartdata "nv_chart_container" %}
+    {% else %}
+        {% load_chart "lineWithFocusChart" chart.chartdata "nv_chart_container" chart.date_tag %}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+        {# <pre> {{ chart|safe }} </pre><br />#}
+        {# <script>console.log({{ chart.chartdata|safe }})</script> #}
+        <h3>{{ chart.chart_title }}</h3>
+        {% include_container "nv_chart_container" 400 800 %}
+{% endblock %}
+
