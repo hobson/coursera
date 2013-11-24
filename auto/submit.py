@@ -14,6 +14,7 @@ class NullDevice:
   def write(self, s):
     pass
 
+
 def submit(partId):   
   print '==\n== [automata-class] Submitting Solutions  | Programming Exercise %s\n==' % homework_id()
 
@@ -29,6 +30,7 @@ def submit(partId):
     print 'You cannot submit until your output on samples is correct'
     return
 
+
   """Submission"""
   # Setup submit list
   partId = promptPart()
@@ -38,6 +40,7 @@ def submit(partId):
     print '!! Expected an integer from 1 to %d.' % len(partNames) + 1
     print '!! Submission Cancelled'
     return
+
 
   (login, password) = loginPrompt()
   if not login:

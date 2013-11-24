@@ -4,20 +4,28 @@ from datetime import datetime as dt
 from scipy.optimize import leastsq
 
 sales = np.loadtxt('sales.csv', delimiter=',')
+returns = np.loadtxt('returns.csv', delimiter=',')
+calls = np.loadtxt('calls.csv', delimiter=',')
 
-t, x = sales  # np.loadtxt(sys.argv[1], delimiter=',', usecols=(1, 11), unpack=True, converters={1: db.to_ordinal})
-doy = np.array([dt.fromordinal(int(d)).timetuple().tm_yday for d in t])
-yr = np.array([dt.fromordinal(int(d)).year for d in t])
+for t, x in [sales, returns, calls]
+doy = np.array([dt.fromordinal(int(o)).timetuple().tm_yday for o in t])
+mon = np.array([dt.fromordinal(int(o)).timetuple().tm_ymon for o in t])
+yr = np.array([dt.fromordinal(int(o)).year for o in t])
 
 # reserve 10% of data as test sample
 cutoff = 0.9 * len(x)
- 
-avgs = np.zeros(366)
- 
-for i in sorted(set(doy)):
-   indices = np.where(doy[:cutoff] == i)
-   avgs[i-1] = x[indices].mean()
- 
+
+# could just as easily use range(1,13)
+months = sorted(set(mon))
+avgs = np.zeros(13)
+
+# for each month of the year
+for i in months:
+    # get the indices for that month (but save some data)
+    indices = np.where(mon[:cutoff] == i)
+    avgs[i-1] = x[indices].mean()
+
+
 def subtract_avgs(a, doy):
    return a - avgs[doy.astype(int)-1]
  
@@ -28,10 +36,10 @@ def print_stats(a):
    print "Min", a.min(), "Max", a.max(), "Mean", a.mean(), "Std", a.std()
    print
  
-# Step 1. DOY avgs
-less_avgs = subtract_avgs(x[:cutoff], doy[:cutoff])
+
+without_avgs = subtract_avgs(x[:cutoff], doy[:cutoff])
 print "After Subtracting DOY avgs"
-print_stats(less_avgs)
+print_stats(without_avgs)
  
 # Step 2. Linear trend
 trend = np.polyfit(yr[:cutoff], less_avgs, 1)
