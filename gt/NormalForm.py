@@ -60,9 +60,10 @@ class NormalForm:
         """
         pass
 
-    def dominant(self, player=None, weak=False):
+    def dominant(self, player=None, weakly=False):
         """Find the maxmin strategy that dominates all others.
 
+        This is the best worst option for the player selected.
         This is the strategy with the highest payoff (utility), when opponents are
          is attempting to minimize your payoff.
         This is equivalent to the nash equilibirum when an opponent's payoff (utility) is inversely
@@ -72,7 +73,7 @@ class NormalForm:
 
         # if no player is identified, then run for both players
         if player is None:
-            return [{'player %s (payoff, strategy)' % p: self.dominant(player=p, weak=weak)} for p in (0, 1)]
+            return [{'player %s (payoff, strategy)' % p: self.dominant(player=p, weakly=weakly)} for p in (0, 1)]
         elif player is 0:
             for i, payoffs in enumerate(self.u):
                 worst = min_with_index(u_r for u_r, u_c in payoffs)
@@ -88,33 +89,8 @@ class NormalForm:
             return worsts[-1][:2]
         return worsts
 
-    def dominated(self, player=None, weak=False):
-        """Find the minmax strategy that dominates all others.
-
-        This is the strategy with the highest payoff (utility), when opponents are
-          attempting to minimize your payoff.
-        This is equivalent to having an opponent whose payoff (utility) is inversely
-          proportional to yours.
-        choses the strategy that minimizes your payoff for that choice"""
-        worsts = []
-
-        # if no player is identified, then run for both players
-        if player is None:
-            return [{'player %s (payoff, strategy)' % p: self.dominant(player=p, weak=weak)} for p in (0, 1)]
-        elif player is 0:
-            for i, payoffs in enumerate(self.u):
-                worst = min_with_index(u_r for u_r, u_c in payoffs)
-                worsts += [(worst[0], i, worst[1])]
-            worsts = sorted(worsts)
-            return worsts[-1][:2]
-        elif player is 1:
-            for j in range(len(self.u[0])):
-                payoffs_col = [payoffs[j] for payoffs in self.u]
-                worst = min_with_index(u_c for u_r, u_c in payoffs_col)
-                worsts += [(worst[0], worst[1], j)]
-            worsts = sorted(worsts)
-            return worsts[-1][:2]
-        return worsts
+    def dominated(self, player=None, weakly=False):
+        """Find all strategies which are dominated by other strategies """
 
     def __repr__(self):
         lines = '\n'.join('%s' % list(l) for l in list(self.u,))

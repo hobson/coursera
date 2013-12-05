@@ -20,3 +20,4 @@ payoff = [
             #('P', 'Sh')
             [(5,  5),  (0, 2)],
          ]
+# ('N', 'St') and ('N, 'Sh') vs ('D') are the 2 nash equil.
