@@ -60,20 +60,33 @@ class Coalition:
         """
         The list of values for each player that they contribute to a coalition or society.
         """
-        ans = []
-        for order_added in itertools.permutations(range(self.N)):
+        ans = [0.] * self.N
+        for order_added in permutations(range(self.N)):
             for player in range(self.N):
                 when_added = order_added.index(player)
-                value = self.v[tuple(order_added[:(when_added + 1)])]
+                # initial value doesn't care when this player was added, just that she was added
+                value = self.v[tuple(sorted(order_added[:(when_added + 1)]))]
+                # if any other players were added before this one, then need to subtrace the value they contributed
                 if when_added > 0:
                     value -= self.v[tuple(order_added[:when_added])]
-                # weighted by the number of possible ways we could have added players before this one
-                value *= math.factorial(when_added + 1) * math.factorial(self.N - when_added)
-                
+                print 'Unweighted value of player %s is %s' % (value, player)
+                weight2 = math.factorial(self.N - when_added)
+                # weight by the number of possible ways we could have added players before this one
+                weight1 = math.factorial(when_added + 1)
+                print '%s ways we could have added players before %s' % (weight1, player)
+                # weight by the number of possible ways additional players could be added to complete the society of size self.N
+                print '%s ways we could added players after %s' % (weight1, player)
+                weight2 = math.factorial(self.N - when_added)
+                ans[player] += (value * weight1 * weight2)
+        print ans
+        # normalize by the number of possible permutations in a society of self.N "players"
+        for i, value in enumerate(ans):
+            ans[i] = value / float(math.factorial(self.N))
+        print ans
+        return ans
 
     def __repr__(self):
-        return self.v
-
+        return 'Coalition(%s, N=%s)' % (self.v, self.N)
 
 
 #http://en.wikipedia.org/wiki/Stirling_numbers_of_the_first_kind#Table_of_values_for_small_n_and_k
