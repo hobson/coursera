@@ -1,4 +1,4 @@
-from itertools import combinations as combos
+from itertools import combinations, permutations
 from collections import OrderedDict as od
 from collections import Mapping
 import math
@@ -33,12 +33,13 @@ class Coalition:
               with less redundancy, perhaps as a hypercube rather than a list of matrices
         """
         self.v = None
+        self.N = None
         if isinstance(values, Mapping):
             self.v = od(values)
         else:
             # TODO: build function to compute N from the length of the list of values
             if isinstance(N, int):
-                lists_of_index_tuples = [list(combos(range(N), i)) for i in range(1, N + 1)]
+                lists_of_index_tuples = [list(combinations(range(N), i)) for i in range(1, N + 1)]
                 index_tuples = [item for sublist in lists_of_index_tuples for item in sublist]
                 self.v = od((i, None) for i in index_tuples)
                 if values and isinstance(values, (list, tuple)):
@@ -49,50 +50,30 @@ class Coalition:
                         values = [item for sublist in values for item in sublist]
                     for index_tuple, value in zip(self.v, values):
                         self.v[index_tuple] = value
+                self.N = N
+        if self.v and not self.N:
+            self.N = max(max(index_tuple) for index_tuple in self.v) + 1
+
+        # self.N = invserse_stirling(len())?
 
     def shapley_values(self):
-        return None
+        """
+        The list of values for each player that they contribute to a coalition or society.
+        """
+        ans = []
+        for order_added in itertools.permutations(range(self.N)):
+            for player in range(self.N):
+                when_added = order_added.index(player)
+                value = self.v[tuple(order_added[:(when_added + 1)])]
+                if when_added > 0:
+                    value -= self.v[tuple(order_added[:when_added])]
+                # weighted by the number of possible ways we could have added players before this one
+                value *= math.factorial(when_added + 1) * math.factorial(self.N - when_added)
+                
 
     def __repr__(self):
         return self.v
 
-
-# http://extr3metech.wordpress.com/2013/01/21/stirling-number-generation-using-python-code-examples/
-def stirling(n, k, cache=None):
-    """
-    >>> stirling(1, 1)
-    1
-    >>> stirling(3, 3)
-    1
-    >>> stirling(3, 2)
-    3
-    >>> stirling(3, 1)
-    2
-    # These are all incorrect but intended according to the http://extr3metech.wordpress.com/ blog
-    >>> stirling(4, 2)
-    11  # FIXME: mproperly gives 7 as the answer
-    >>> stirling(5, 2)
-    15
-    >>> stirling(5, 3)
-    25
-    >>> stirling(20,15)
-    452329200
-    """
-    cache = cache or {(0, 0): -1}
-    if n <= 0:
-        return 1
-    elif k <= 0:
-        return 0
-    elif n == k:
-        return 1
-    elif n < k:
-        return 0
-    elif (n, k) in cache:
-        return cache[(n, k)]
-    else:
-        cache[(n - 1, k - 1)] = stirling(n - 1, k - 1, cache)
-        cache[(n - 1, k)] = stirling(n - 1, k, cache)
-        return (k * cache[(n - 1, k)]) + cache[(n - 1, k - 1)]
 
 
 #http://en.wikipedia.org/wiki/Stirling_numbers_of_the_first_kind#Table_of_values_for_small_n_and_k
