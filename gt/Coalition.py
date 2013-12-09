@@ -53,12 +53,19 @@ class Coalition:
                 self.N = N
         if self.v and not self.N:
             self.N = max(max(index_tuple) for index_tuple in self.v) + 1
-
         # self.N = invserse_stirling(len())?
 
     def shapley_values(self):
         """
         The list of values for each player that they contribute to a coalition or society.
+
+        >>> Coalition([1, 2, 4], N=2).shapley_values()
+        [1.5, 2.5]
+        >>> Coalition([2, 3, 5, 7, 10, 15, 27], N=3).shapley_values()
+        [1.5, 2.5]
+
+        TODO:
+            reduce redundant use of tuple(sorted()) to sort tuples and convert back to tuples
         """
         ans = [0.] * self.N
         for order_added in permutations(range(self.N)):
@@ -69,24 +76,20 @@ class Coalition:
                 value = self.v[player_subset]
                 # if any other players were added before this one, then need to subtrace the value they contributed
                 if when_added > 0:
-                    value -= self.v[tuple(order_added[:when_added])]
+                    value -= self.v[tuple(sorted(order_added[:when_added]))]
                 print 'Unweighted value of player %s in subset %s is %s' % (player, player_subset, value)
                 # weight by the number of possible ways we could have added players before this one
                 weight1 = math.factorial(when_added)
-                print '%s ways we could have added players before %s' % (weight1, player)
-                num_remainder_perms = self.N - when_added - 1 
-                if num_remainder_perms >= 0:
-                    # weight by the number of possible ways additional players could be added to complete the society of size self.N
-                    weight2 = math.factorial(num_remainder_perms)
-                else:
-                    weight2 = 1
+                #print '%s ways we could have added players before %s' % (weight1, player)
+                num_remainder_perms = self.N - when_added - 1
+                # weight by the number of possible ways additional players could be added to complete the society of size self.N
+                weight2 = math.factorial(num_remainder_perms)
                 print '%s ways we could added players after %s' % (weight2, player)
+                print 'total weight = %s, total value = %s ' % (weight1 * weight2, value * weight1 * weight2)
                 ans[player] += (value * weight1 * weight2)
-        print ans
         # normalize by the number of possible permutations in a society of self.N "players"
         for i, value in enumerate(ans):
             ans[i] = value / float(math.factorial(self.N))
-        print ans
         return ans
 
     def __repr__(self):
