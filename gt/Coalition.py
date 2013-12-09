@@ -64,19 +64,23 @@ class Coalition:
         for order_added in permutations(range(self.N)):
             for player in range(self.N):
                 when_added = order_added.index(player)
+                player_subset = tuple(sorted(order_added[:(when_added + 1)]))
                 # initial value doesn't care when this player was added, just that she was added
-                value = self.v[tuple(sorted(order_added[:(when_added + 1)]))]
+                value = self.v[player_subset]
                 # if any other players were added before this one, then need to subtrace the value they contributed
                 if when_added > 0:
                     value -= self.v[tuple(order_added[:when_added])]
-                print 'Unweighted value of player %s is %s' % (value, player)
-                weight2 = math.factorial(self.N - when_added)
+                print 'Unweighted value of player %s in subset %s is %s' % (player, player_subset, value)
                 # weight by the number of possible ways we could have added players before this one
-                weight1 = math.factorial(when_added + 1)
+                weight1 = math.factorial(when_added)
                 print '%s ways we could have added players before %s' % (weight1, player)
-                # weight by the number of possible ways additional players could be added to complete the society of size self.N
-                print '%s ways we could added players after %s' % (weight1, player)
-                weight2 = math.factorial(self.N - when_added)
+                num_remainder_perms = self.N - when_added - 1 
+                if num_remainder_perms >= 0:
+                    # weight by the number of possible ways additional players could be added to complete the society of size self.N
+                    weight2 = math.factorial(num_remainder_perms)
+                else:
+                    weight2 = 1
+                print '%s ways we could added players after %s' % (weight2, player)
                 ans[player] += (value * weight1 * weight2)
         print ans
         # normalize by the number of possible permutations in a society of self.N "players"
