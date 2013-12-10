@@ -9,7 +9,7 @@ import decorators as decorate
 
 class Coalition:
 
-    def __init__(self, values=None, N=None):
+    def __init__(self, values=None, N=None, verbosity=1):
         """The only argument is a list of N! lists of values for players and subsets of coalitions
 
         [[v1],
@@ -29,14 +29,24 @@ class Coalition:
          :
 
         TODO:
-           1. Better representation of all the possible coalitions and subsets of the coalitions
+            1. Better representation of all the possible coalitions and subsets of the coalitions
               with less redundancy, perhaps as a hypercube rather than a list of matrices
+            2. Name players
         """
+        self.verbosity = verbosity
         self.v = None
         self.N = None
         if isinstance(values, Mapping):
             self.v = od(values)
         else:
+            N_subsets = len(values)
+            N0 = inverse_num_subsets(N_subsets, includes_empty_set=True)
+            N1 = inverse_num_subsets(N_subsets, includes_empty_set=False)
+            if N0 != N and N1 != N:
+                if int(N0) == N0:
+                    N = N0
+                else:
+                    N = int(N1)
             # TODO: build function to compute N from the length of the list of values
             if isinstance(N, int):
                 lists_of_index_tuples = [list(combinations(range(N), i)) for i in range(1, N + 1)]
@@ -59,17 +69,34 @@ class Coalition:
         """
         The list of values for each player that they contribute to a coalition or society.
 
+        3-agent example:
+        phi1 = 1/3. * v1 + 1/6. * (v12-v2) + 1/6. * (v13-v3) + 1/3. * (v123-v23)
+        phi2 = 1/3. * v2 + 1/6. * (v12-v1) + 1/6. * (v23-v3) + 1/3. * (v123-v13)
+        phi3 = 1/3. * v3 + 1/6. * (v13-v1) + 1/6. * (v23-v2) + 1/3. * (v123-v12)
+        And this gives the doctest answer below as:
+        phi1 = 1/3 + 10/3 + 100/3 = 222/6 = 37
+        phi2 = 2/3 + 31/6 + 110/3 = 255/6 = 42.5
+        phi3 = 3/3 + 33/6 + 111/3 = 261/6 = 43.5
+
         >>> Coalition([1, 2, 4], N=2).shapley_values()
         [1.5, 2.5]
-        >>> Coalition([2, 3, 5, 7, 10, 15, 27], N=3).shapley_values()
-        [1.5, 2.5]
+        >>> Coalition([1, 2, 3, 12, 13, 23, 123], N=3).shapley_values()
+        [37.0, 42.5, 43.5]
+        >>> Coalition([0, 0, 0, 3, 3, 0, 4], N=3).shapley_values()  # doctest: +ELLIPSES
+        [2.333..., 0.833..., 0.833...]
 
         TODO:
             reduce redundant use of tuple(sorted()) to sort tuples and convert back to tuples
         """
         ans = [0.] * self.N
-        for order_added in permutations(range(self.N)):
-            for player in range(self.N):
+        # because we're doing all the permutations individually, we don't need to normalize by neither
+        #   1. the number of ways we can add players and reach that marginal contribution of a player
+        #   nor
+        #   2. the number of ways we could add to that subset to acheive the grand coalition
+        for player in range(self.N):
+            if self.verbosity:
+                print '----- Player %d -----' % player
+            for order_added in permutations(range(self.N)):
                 when_added = order_added.index(player)
                 player_subset = tuple(sorted(order_added[:(when_added + 1)]))
                 # initial value doesn't care when this player was added, just that she was added
@@ -77,20 +104,65 @@ class Coalition:
                 # if any other players were added before this one, then need to subtrace the value they contributed
                 if when_added > 0:
                     value -= self.v[tuple(sorted(order_added[:when_added]))]
-                print 'Unweighted value of player %s in subset %s is %s' % (player, player_subset, value)
+                if self.verbosity:
+                    print 'Marginal value for subset %s is %s' % (player_subset, value)
                 # weight by the number of possible ways we could have added players before this one
-                weight1 = math.factorial(when_added)
+                weight1 = 1.  # math.factorial(when_added)
                 #print '%s ways we could have added players before %s' % (weight1, player)
-                num_remainder_perms = self.N - when_added - 1
                 # weight by the number of possible ways additional players could be added to complete the society of size self.N
-                weight2 = math.factorial(num_remainder_perms)
-                print '%s ways we could added players after %s' % (weight2, player)
-                print 'total weight = %s, total value = %s ' % (weight1 * weight2, value * weight1 * weight2)
+                weight2 = 1.  # math.factorial(self.N - when_added - 1)
+                if self.verbosity > 1:
+                    print '%s ways we could added players after %s' % (weight2, player)
+                    print 'total weight = %s, total value = %s ' % (weight1 * weight2, value * weight1 * weight2)
                 ans[player] += (value * weight1 * weight2)
         # normalize by the number of possible permutations in a society of self.N "players"
-        for i, value in enumerate(ans):
-            ans[i] = value / float(math.factorial(self.N))
+        for i in range(len(ans)):
+            ans[i] = ans[i] / float(math.factorial(self.N))
         return ans
+
+    def core(self):
+        """
+        Calculate one possible core allocation, or None, if the core is empty.
+
+        >>> Coalition([0, 0, 0, .8, .8, .8, 1], verbosity=0).core()
+        >>> Coalition([0, 0, 0, 2/3., 2/3., 2/3., 1], verbosity=0).core()  # doctest: +ELLIPSES
+        [0.333..., 0.333..., 0.333...]
+        >>> Coalition([0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 2], N=4, verbosity=0).core()
+        """
+        # need to solve N! inequalities, so might as well solve the equality first
+        dim = len(self.v) - self.N
+        A = np.zeros((dim, self.N))
+        y = self.v.values()[self.N:]
+        #print len(y)
+        for i, indices in enumerate(list(self.v)[self.N:]):
+            for j in indices:
+                A[i][j] = 1.
+        if self.verbosity > 2:
+            print 'A * x = y'
+            print 'A = %s' % A
+            print 'y = %s' % y
+        #print np.linalg.solve(A, y)
+        ans, residuals, rank, singular_values = np.linalg.lstsq(A, y)
+        if self.verbosity:
+            print 'Possible core allocation = %s' % ans
+        bigger = np.squeeze(np.asarray(A * np.matrix([[a] for a in ans])))
+        if self.verbosity > 1:
+            print 'y for solution = %s' % bigger
+        # Subtract 1e-12 to deal with potential round off error when comparing floats,
+        #   especially when using approx lstsq() instead of exact solve()
+        #   I haven't had a solution abandonded due to roundoff error yet, but wanted to make sure
+        if any((b < (y[i] - 1e-12 * (1 + abs(b) + abs(y[i])))) for (i, b) in enumerate(bigger)):
+            if self.verbosity > 1:
+                print 'The potential core values on the left are smaller than the society value allocations on the right.'
+                print [(b, (y[i] - 1e-12 * (1 + abs(b) + abs(y[i])))) for (i, b) in enumerate(bigger)]
+            return None
+        indie_values = self.v.values()[:self.N]
+        if any(a < (indie_values[i] - 1e-12 * (1 + abs(a) + abs(indie_values[i]))) for i, a in enumerate(ans)):
+            if self.verbosity > 1:
+                print 'The potential core values on the left are smaller than the individual player value allocations on the right.'
+                print [(a, (indie_values[i] - 1e-12 * (1 + abs(a) + abs(indie_values[i])))) for i, a in enumerate(ans)]
+            return None
+        return list(ans)
 
     def __repr__(self):
         return 'Coalition(%s, N=%s)' % (self.v, self.N)
@@ -173,6 +245,30 @@ def unsigned_stirling_type1_table(N=12):
             row += [unsigned_stirling_type1(n, k)]
         table += [row]
     return table
+
+
+def num_subsets(N, include_empty_set=False):
+    """
+    Number of nonempty subsets that you can form from N distinguishable elements.
+
+    >>> num_subsets(4)
+    15
+    >>> num_subsets(4, include_empty_set=True)
+    16
+    """
+    return 2 ** N - int(not(include_empty_set))
+
+
+def inverse_num_subsets(N_subsets, includes_empty_set=False):
+    """
+    Number of nonempty subsets that you can form from N distinguishable elements.
+
+    >>> inverse_num_subsets(15)
+    4
+    >>> num_subsets(16, include_empty_set=True)
+    4
+    """
+    return math.log(N_subsets + int(not(includes_empty_set)), 2)
 
 
 def convolve(a, b):
