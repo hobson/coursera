@@ -122,7 +122,7 @@ class Coalition:
 
     def core(self):
         """
-        Calculate one possible core allocation, or None, if the core is empty.
+        One possible core allocation, or None, if the core is likely to be empty.
 
         >>> Coalition([0, 0, 0, .8, .8, .8, 1], verbosity=0).core()
         >>> Coalition([0, 0, 0, 2/3., 2/3., 2/3., 1], verbosity=0).core()  # doctest: +ELLIPSES
@@ -145,16 +145,16 @@ class Coalition:
         ans, residuals, rank, singular_values = np.linalg.lstsq(A, y)
         if self.verbosity:
             print 'Possible core allocation = %s' % ans
-        bigger = np.squeeze(np.asarray(A * np.matrix([[a] for a in ans])))
+        bigs = np.squeeze(np.asarray(A * np.matrix([[a] for a in ans])))
         if self.verbosity > 1:
-            print 'y for solution = %s' % bigger
+            print 'y for solution = %s' % bigs
         # Subtract 1e-12 to deal with potential round off error when comparing floats,
         #   especially when using approx lstsq() instead of exact solve()
         #   I haven't had a solution abandonded due to roundoff error yet, but wanted to make sure
-        if any((b < (y[i] - 1e-12 * (1 + abs(b) + abs(y[i])))) for (i, b) in enumerate(bigger)):
+        if any(big < (y[i] - 1e-12 * (1 + abs(big) + abs(y[i]))) for (i, big) in enumerate(bigs)):
             if self.verbosity > 1:
                 print 'The potential core values on the left are smaller than the society value allocations on the right.'
-                print [(b, (y[i] - 1e-12 * (1 + abs(b) + abs(y[i])))) for (i, b) in enumerate(bigger)]
+                print [(big, '<', y[i] - 1e-12 * (1 + abs(big) + abs(y[i]))) for (i, big) in enumerate(bigs)]
             return None
         indie_values = self.v.values()[:self.N]
         if any(a < (indie_values[i] - 1e-12 * (1 + abs(a) + abs(indie_values[i]))) for i, a in enumerate(ans)):

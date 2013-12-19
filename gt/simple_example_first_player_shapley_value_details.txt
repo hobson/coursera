@@ -1,0 +1,18 @@
+Unweighted value of player 0 in subset  (0,) is 2
+    2 ways we could added players after 0
+    total weight = 2, total value = 4 
+Unweighted value of player 0 in subset (0,) is 2
+    2 ways we could added players after 0
+    total weight = 2, total value = 4 
+Unweighted value of player 0 in subset (0, 1) is 4
+    1 ways we could added players after 0
+    total weight = 1, total value = 4 
+Unweighted value of player 0 in subset (0, 1, 2) is 12
+    1 ways we could added players after 0
+    total weight = 2, total value = 24 
+Unweighted value of player 0 in subset (0, 2) is 5
+    1 ways we could added players after 0
+    total weight = 1, total value = 5 
+Unweighted value of player 0 in subset (0, 1, 2) is 12
+    1 ways we could added players after 0
+    total weight = 2, total value = 24 

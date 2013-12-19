@@ -24,11 +24,9 @@ class NormalForm:
     >>> NormalForm(game).dominant()
     [{'player 0 (payoff, strategy)': (4, 2)}, {'player 1 (payoff, strategy)': (2, 0)}]
     """
-    u = None
-    u_min = None
-
     def __init__(self, *args):
         self.u = None
+        self.players = None
         if (args and args[0] and args[0][0] and isinstance(args[0], (list, tuple))
                 and args[0][0] and isinstance(args[0][0], (list, tuple))
                 and len(args[0][0][0]) == 2):
@@ -36,6 +34,10 @@ class NormalForm:
             for row in args[0]:
                 self.u += [tuple(tuple(payoffs) for payoffs in row)]
             self.u = tuple(self.u)
+        if (len(args) > 0 and len(args[1]) >= 2 and all(isinstance(a, basestring) for a in args[1])):
+            self.players = [str(a).strip() for a in args[1]]
+        else:
+            self.players = ['player_%d' % i for i in range(1, len(self.u) + 1)]
 
     def pareto_optimima(self):
         """The strategy profiles for all players that maximize the total good
@@ -65,29 +67,28 @@ class NormalForm:
 
         This is the best worst option for the player selected.
         This is the strategy with the highest payoff (utility), when opponents are
-         is attempting to minimize your payoff.
-        This is equivalent to the nash equilibirum when an opponent's payoff (utility) is inversely
-         proportional to yours.
+          attempting to minimize oponents' payoff.
+        This is equivalent to the nash equilibirum iff an opponent's payoff (utility) is inversely
+          proportional to their oponents' payoff (zero-sum game).
         """
         worsts = []
 
         # if no player is identified, then run for both players
         if player is None:
-            return [{'player %s (payoff, strategy)' % p: self.dominant(player=p, weakly=weakly)} for p in (0, 1)]
-        elif player is 0:
+            return [{'%s (payoff, strategy)' % p: self.dominant(player=i, weakly=weakly)} for i, p in enumerate(self.players)]
+        elif player in (0, self.players[0]):
             for i, payoffs in enumerate(self.u):
                 worst = min_with_index(u_r for u_r, u_c in payoffs)
                 worsts += [(worst[0], i, worst[1])]
             worsts = sorted(worsts)
-            return worsts[-1][:2]
-        elif player is 1:
+            return (worsts[-1][0], self.player[worsts[-1][1]])
+        elif player in (1, self.players[1]):
             for j in range(len(self.u[0])):
                 payoffs_col = [payoffs[j] for payoffs in self.u]
                 worst = min_with_index(u_c for u_r, u_c in payoffs_col)
                 worsts += [(worst[0], worst[1], j)]
             worsts = sorted(worsts)
-            return worsts[-1][:2]
-        return worsts
+            return (worsts[-1][0], self.player[worsts[-1][1]])
 
     def dominated(self, player=None, weakly=False):
         """Find all strategies which are dominated by other strategies """
@@ -95,8 +96,8 @@ class NormalForm:
     def __repr__(self):
         lines = '\n'.join('%s' % list(l) for l in list(self.u,))
         if len(self.u) <= 1:
-            return 'NormalForm(%s)' % lines
-        return 'NormalForm(\n%s)' % lines
+            return '%s(%s)' % (self.__class__.__name__, lines)
+        return '%s(\n%s)' % (self.__class__.__name__, lines)
 
 
 def min_with_index(seq):
