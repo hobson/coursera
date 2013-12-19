@@ -80,11 +80,17 @@ def incCapacity():
 #   1. where the first element is the start state of the combined NFA.
 #   2. the second being the final state
 def union(s1, t1, s2, t2):
-    st = [0] * 2
-
-    #Please fill in the program here
-
-    return st
+    """Lecture 5, slide 14 shows epsilons from the new start state to each of the old start states.
+    Likewise for the old end states to a new end states.
+    """
+    global g
+    new_start = incCapacity()
+    addEdge(new_start, symbol, s1)
+    addEdge(new_start, symbol, s2)
+    new_end = incCapacity()
+    addEdge(t1, symbol, new_end)
+    addEdge(t2, symbol, new_end)
+    return [new_start, new_end]
 
 
 #concatenation of two Epsilon-NFAs, with start state s1 and s2, final state t1 and t2, respectively
@@ -92,10 +98,11 @@ def union(s1, t1, s2, t2):
 #    1. where the first element is the start state of the combined NFA.
 #    2. the second being the final state
 def concat(s1, t1, s2, t2):
-    st = [0] * 2
-    #Please fill in the program here
-
-    return st
+    """Lecture 6, slide 15 shows a new epsilon edge from the end_1 to start-2.
+    """
+    global g
+    addEdge(t1, symbol, s2)
+    return [s1, t2]
 
 
 #Closure of a Epsilon-NFA, with start state s and final state t
@@ -103,9 +110,19 @@ def concat(s1, t1, s2, t2):
 #    1. where the first element is the start state of the closure Epsilon-NFA
 #    2. the second being the final state
 def clo(s, t):
-    st = [0] * 2
-    #Please fill in the program here
-    return st
+    """Lecture 5, slide 16 shows epsilons from the new start state to old start and old end to new end.
+    Also a bypass epsilon (new start to new end) and a reverse epsilon (old end to old start).
+    """
+    global g
+    new_start = incCapacity()
+    addEdge(new_start, symbol, s)
+    new_end = incCapacity()
+    addEdge(t, symbol, new_end)
+    # reverse
+    addEdge(t, symbol, s)
+    # bypass
+    addEdge(new_start, symbol, new_end)
+    return [new_start, new_end]
 
 
 #Calculate the closure: CL()
