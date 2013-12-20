@@ -64,7 +64,7 @@ def calcCYK(w):
                     print diag, i, j, k, producer
                     for var in range(VarNum):
                         for var2 in range(VarNum):
-                            if X[i][j + k - 1][var] and X[i + k + 1][j][var2]:
+                            if X[i][k][var] and X[i + k + 1][j][var2]:
                                 X[i][j][producer] = X[i][j][producer] or existProd(producer, var, var2)
             print 'X', printXorig(L)
     #return X
