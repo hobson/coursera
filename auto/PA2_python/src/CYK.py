@@ -49,25 +49,24 @@ def calcCYK(w):
         print position_index, symbol_index
         for var in range(VarNum):
             if existProd(var, symbol_index, -1):
-                X[L - 1][position_index][var] = True
+                X[position_index][position_index][var] = True
         print 'X_N_%d = %s' % (position_index, X[L - 1][position_index])
     print '=' * 80
-    print printX(L)
+    print printXorig(L)
     print '=' * 80
-    # from the bottom of the matrix to the top
-    for i in range(L - 2, -1, -1):
-        #from left to right in the row of X
-        for j in range(i + 1):
-            #from bottom of X up to the current row in X
-            for k_diag in range(i + 1, L):
-                k_vert = L - 2 - (i - k_diag)
-                for var in range(VarNum):
-                    print '-------X indices'
-                    print i, j, var
-                    print k_vert, j
-                    print k_diag, 1 + j + (L - 1 - k_vert)
-                    # top of vert seq  = vert element            or diag element
-                    X[i][j][var] = X[k_vert][j][var] or X[k_diag][1 + j + (L - 1 - k_vert)][var]
+    for diag in range(1, L):
+        for i in range(L - diag):
+            j = diag + i
+            print '-'*20
+            # for each of the pairs of substrings you need to produce with a combination of productions
+            for k in range(diag):
+                for producer in range(VarNum):
+                    print diag, i, j, k, producer
+                    for var in range(VarNum):
+                        for var2 in range(VarNum):
+                            if X[i][j + k - 1][var] and X[i + k + 1][j][var2]:
+                                X[i][j][producer] = X[i][j][producer] or existProd(producer, var, var2)
+            print 'X', printXorig(L)
     #return X
 
 
@@ -76,7 +75,7 @@ def printX(length):
     global VarNum
     result = ''
     for i in range(length):
-        for j in range(length):
+        for j in range(i + 1, length):
             for k in range(VarNum):
                 if X[i][j][k]:
                     result += str(k)
@@ -102,6 +101,7 @@ def printXorig(length):
         result += '\n'
     return result
 
+
 def Start(filename):
     global X
     global VarNum
@@ -116,13 +116,13 @@ def Start(filename):
         production[0][0] = 0; production[0][1]=1; production[0][2] = 2  #S->AB
         # A
         production[1][0] = 1; production[1][1]=2; production[1][2] = 3  #A->BC
-        production[2][0] = 1; production[2][1]=0; production[2][2] = -1 #A->a
+        production[2][0] = 1; production[2][1]=0; production[2][2] = -1  #A->a
         # B
         production[3][0] = 2; production[3][1]=1; production[3][2] = 3  #B->AC
-        production[4][0] = 2; production[4][1]=1; production[4][2] = -1 #B->b
+        production[4][0] = 2; production[4][1]=1; production[4][2] = -1  #B->b
         # C
-        production[5][0] = 3; production[5][1]=0; production[5][2] = -1 #C->a
-        production[6][0] = 3; production[6][1]=1; production[6][2] = -1 #C->b
+        production[5][0] = 3; production[5][1]=0; production[5][2] = -1  #C->a
+        production[6][0] = 3; production[6][1]=1; production[6][2] = -1  #C->b
 
         result = ''
 
@@ -136,7 +136,7 @@ def Start(filename):
                 w[i] = ord(string[i]) - ord('a')  # convert 'a' to 0 and 'b' to 1
             #Use CYK algorithm to calculate X
             calcCYK(w)
-            print printX(length)
+            print printXorig(length)
         #Close the input stream
         br.close()
     except:
@@ -144,7 +144,7 @@ def Start(filename):
         print "*** print_exception:"
         traceback.print_exception(exc_type, exc_value, exc_traceback,limit=2, file=sys.stdout)
         result += 'error'
-        print printX(length)
+        print printXorig(length)
     return result
 
 def main(filepath):
