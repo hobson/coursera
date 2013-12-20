@@ -42,32 +42,32 @@ def calcCYK(w):
     global production
     L = len(w)
     X = [[[False] * VarNum for i in range(L)] for j in range(L)]
-    print 'Size'
-    print L, L, VarNum
+    #print 'Size'
+    #print L, L, VarNum
     # bottom row first:
     for position_index, symbol_index in enumerate(w):
-        print position_index, symbol_index
+        #print position_index, symbol_index
         for var in range(VarNum):
             if existProd(var, symbol_index, -1):
                 X[position_index][position_index][var] = True
-        print 'X_N_%d = %s' % (position_index, X[L - 1][position_index])
-    print '=' * 80
-    print printXorig(L)
-    print '=' * 80
+        #print 'X_N_%d = %s' % (position_index, X[L - 1][position_index])
+    #print '=' * 80
+    #print printXorig(L)
+    #print '=' * 80
     for diag in range(1, L):
         for i in range(L - diag):
             j = diag + i
-            print '-'*20
+            #print '-'*20
             # for each of the pairs of substrings you need to produce with a combination of productions
             for k in range(diag):
                 for producer in range(VarNum):
-                    print diag, i, j, k, producer
+                    #print diag, 'xij', i, j, 'x0', i, j + k + 1, 'x1', i + k + 1, j, 'producer var', producer
                     for var in range(VarNum):
                         for var2 in range(VarNum):
-                            if X[i][k][var] and X[i + k + 1][j][var2]:
+                            if X[i][j + k - diag][var] and X[i + k + 1][j][var2]:
                                 X[i][j][producer] = X[i][j][producer] or existProd(producer, var, var2)
-            print 'X', printXorig(L)
-    #return X
+            # print 'X', printXorig(L)
+    return printXorig(L)
 
 
 def printX(length):
@@ -135,8 +135,7 @@ def Start(filename):
             for i in range(length):
                 w[i] = ord(string[i]) - ord('a')  # convert 'a' to 0 and 'b' to 1
             #Use CYK algorithm to calculate X
-            calcCYK(w)
-            print printXorig(length)
+            result = calcCYK(w)
         #Close the input stream
         br.close()
     except:
