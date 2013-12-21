@@ -35,8 +35,32 @@ def calcCYK(w):
     global X
     global VarNum
     L=len(w)
-    X=[[[False]*VarNum for i in range(L)] for j in range(L)]
-    #Fill in your program here
+    X = [[[False] * VarNum for i in range(L)] for j in range(L)]
+    #print 'Size'
+    #print L, L, VarNum
+    # bottom row first:
+    for position_index, symbol_index in enumerate(w):
+        #print position_index, symbol_index
+        for var in range(VarNum):
+            if existProd(var, symbol_index, -1):
+                X[position_index][position_index][var] = True
+        #print 'X_N_%d = %s' % (position_index, X[L - 1][position_index])
+    #print '=' * 80
+    #print printXorig(L)
+    #print '=' * 80
+    for diag in range(1, L):
+        for i in range(L - diag):
+            j = diag + i
+            #print '-'*20
+            # for each of the pairs of substrings you need to produce with a combination of productions
+            for k in range(diag):
+                for producer in range(VarNum):
+                    #print diag, 'xij', i, j, 'x0', i, j + k + 1, 'x1', i + k + 1, j, 'producer var', producer
+                    for var in range(VarNum):
+                        for var2 in range(VarNum):
+                            if X[i][j + k - diag][var] and X[i + k + 1][j][var2]:
+                                X[i][j][producer] = X[i][j][producer] or existProd(producer, var, var2)
+            # print 'X', printXorig(L)
 
 
 
