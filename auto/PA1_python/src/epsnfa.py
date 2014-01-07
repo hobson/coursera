@@ -5,6 +5,8 @@ import string
 
 maxn = 200  # maximum number of states
 symbol = 2  # number of symbols ('0','1')
+EPSILON = u"\u03B5"
+symbols = (u'0', u'1', EPSILON)
 epssymbol = 2
 
 '''g[s1][i][s2]=True if and only if there's an edge with symbol i from state s1 to s2
@@ -12,28 +14,55 @@ epssymbol = 2
    For fixed state s1 and a symbol c, it is not necessary to exist s2 such that
    g[s1][c][s2]=True. If no such s2 exists, we deem that getting c at state s1 will
    make the Epsilon-NFA go into a non-final "dead" state and will directly make the
-   the string not accepted.'''
+  the string not accepted.'''
 
-g = [[[False] * maxn for i in range(symbol+1)] for j in range(maxn)]
+g = [[[False] * maxn for i in range(symbol + 1)] for j in range(maxn)]
+
+
+# TODO: make this an ordered dict so that the unicode/ascii symbols are part of the data structure as indices
+class Graph(list):
+    def __init__(self, *args):
+        self.N = 0
+        self.M = 0
+        self.symbols = []  # ('0', '1', '<Epsilon>')
+        if args and args[0] and args[0][0] and args[0][0][0]:
+            self.N = max(len(args), len(args[0][0]))  # maxn = 200  # maximum number of states
+            self.M = max(len(args[s1]) for s1 in range(self.N))  # symbol = 2  # number of symbols ('0','1')
+            if self.M < 11:
+                self.symbols = [chr(ord[u'0'] + sym for sym in range(self.M - 1))] + [EPSILON]
+            elif self.M < 27:
+                self.symbols = [chr(ord[u'a'] + sym for sym in range(self.M - 1))] + [EPSILON]
+        super(Graph, self)(*args)
+
+    epssymbol = 2
+
+    def __repr__(self):
+        # display the symbols as part of the graph
+        return repr(list(self))
+
+    def svg(self):
+        # FIXME: compose an SVG string (using d3?)
+        return repr(list(self))
+
 
 ''' closure[s1][s2] is True if and only if s2 is in CL(s1)'''
-closure = [[False]*maxn for i in range(maxn)]
+closure = [[False] * maxn for i in range(maxn)]
 
 '''nextpa[i]=i if the regular expression at position i is not '('
    nextpa[i]=j if the regular expression at position i is '(' and jth position holds the corresponding ')'
 '''
-nextpa = [0]*100
+nextpa = [0] * 100
 
 state = 0  # current number of states
 
 
-# add edge from s1 to s2 with symbol c
+#add edge from s1 to s2 with symbol c
 def addEdge(s1, c, s2):
     global g
     g[s1][c][s2] = True
 
 
-# increase the number of states of NFA by 1
+#increase the number of states of NFA by 1
 def incCapacity():
     global state
     global g
@@ -46,37 +75,61 @@ def incCapacity():
     return state - 1
 
 
+# unite two Epsilon-NFAs, with start state s1 and s2, final state t1 and t2, respectively
+# return an array of length 2:
+#   1. where the first element is the start state of the combined NFA.
+#   2. the second being the final state
 def union(s1, t1, s2, t2):
-    """ Unite two Epsilon-NFAs, with start state s1 and s2, final state t1 and t2, respectively.
-        Returns an array of length 2, where the first element is the start state of the combined NFA.
-        The second element is the final state of the combined NFA.
+    """Lecture 5, slide 14 shows epsilons from the new start state to each of the old start states.
+    Likewise for the old end states to a new end states.
     """
-    # st = [0] * 2
-    #Please fill in the program here
-    return [list(set([s1, s2])), list(set([t1, t2]))]
+    global g
+    new_start = incCapacity()
+    addEdge(new_start, symbol, s1)
+    addEdge(new_start, symbol, s2)
+    new_end = incCapacity()
+    addEdge(t1, symbol, new_end)
+    addEdge(t2, symbol, new_end)
+    return [new_start, new_end]
 
 
 #concatenation of two Epsilon-NFAs, with start state s1 and s2, final state t1 and t2, respectively
-#return an array of length 2, where the first element is the start state of the combined NFA. the second being the final state
+# return an array of length 2:
+#    1. where the first element is the start state of the combined NFA.
+#    2. the second being the final state
 def concat(s1, t1, s2, t2):
-    # st = [0] * 2
-    #Please fill in the program here
+    """Lecture 6, slide 15 shows a new epsilon edge from the end_1 to start-2.
+    """
+    global g
+    addEdge(t1, symbol, s2)
     return [s1, t2]
 
 
 #Closure of a Epsilon-NFA, with start state s and final state t
-#return an array of length 2, where the first element is the start state of the closure Epsilon-NFA. the second being the final state
+# return an array of length 2:
+#    1. where the first element is the start state of the closure Epsilon-NFA
+#    2. the second being the final state
 def clo(s, t):
-    st = [0] * 2
-    #Please fill in the program here
-    return st
+    """Lecture 5, slide 16 shows epsilons from the new start state to old start and old end to new end.
+    Also a bypass epsilon (new start to new end) and a reverse epsilon (old end to old start).
+    """
+    global g
+    new_start = incCapacity()
+    addEdge(new_start, symbol, s)
+    new_end = incCapacity()
+    addEdge(t, symbol, new_end)
+    # reverse
+    addEdge(t, symbol, s)
+    # bypass
+    addEdge(new_start, symbol, new_end)
+    return [new_start, new_end]
 
 
 #Calculate the closure: CL()
 def calc_closure():
     global closure
     global symbol
-    queue = [0]*maxn
+    queue = [0] * maxn
 
     for i in range(state):
         for j in range(state):
@@ -86,7 +139,7 @@ def calc_closure():
         tail = 0
         queue[0] = i
         closure[i][i] = True
-        while head < tail:
+        while (head < tail):
             head = head + 1
             j = queue[head]
             #search along epsilon edge
@@ -99,31 +152,32 @@ def calc_closure():
 
 def parse(re, s, t):
     '''parse a regular expression from position s to t, returning the corresponding
-    Epsilon-NFA. The array of length 2 contains the start state at the first position
-    and the final state at the second position'''
+       Epsilon-NFA. The array of length 2 contains the start state at the first position
+       and the final state at the second position'''
+
     #single symbol
-    if s == t:
+    if (s == t):
         st = [0] * 2
         st[0] = incCapacity()
         st[1] = incCapacity()
-        #epsilon
-        if (re[s] == 'e'):
+
+        if re[s] in ('e', EPSILON):
             addEdge(st[0], symbol, st[1])
         else:
             addEdge(st[0], string.atoi(re[s]), st[1])
         return st
 
     #(....)
-    if re[s] == '(' and re[t]==')':
-        if (nextpa[s] == t):
+    if (re[s] == '(') and (re[t] == ')'):
+        if nextpa[s] == t:
             return parse(re, s + 1, t - 1)
 
     #RE1+RE2
     i = s
     while i <= t:
         i = nextpa[i]
-        
-        if ((i <= t) and (re[i] == '+')):
+
+        if i <= t and re[i] == '+':
             st1 = parse(re, s, i - 1)
             st2 = parse(re, i + 1, t)
             st = union(st1[0], st1[1], st2[0], st2[1])
@@ -133,19 +187,19 @@ def parse(re, s, t):
 
     #RE1.RE2
     i = s
-    while (i <= t):
+    while i <= t:
         i = nextpa[i]
-
-        if ((i <= t) and (re[i] == '.')):
+        
+        if i <= t and re[i] == '.':
             st1 = parse(re, s, i - 1)
             st2 = parse(re, i + 1, t)
-            st = concat(st1[0], st1[1], st2[0], st2[1])
+            st = concat(st1[0],st1[1],st2[0],st2[1])
             return st
-        i = i + 1
+        i=i+1
     
     #(RE)*
-    st1 = parse(re, s, t - 1)
-    st = clo(st1[0], st1[1])
+    st1=parse(re,s,t-1)
+    st=clo(st1[0],st1[1])
     return st
 
 #calculate the corresponding ')' of '('
