@@ -4,6 +4,10 @@ import os
 from scipy.sparse import csr_matrix  # compressed, sparse, row-wise (slow column slicing)
 from collections import Mapping, Counter
 
+import string
+
+PUNC = string.punctuation
+
 #import nltk
 
 
@@ -22,13 +26,20 @@ def strip_HTML(s):
     return result
 
 
-WORD_SPLIT_IGNORE_EXTERNAL_APOSTRAPHIES = re.compile('\W*\s\'{1,3}|\'{1,3}\W+|[^-\'_.a-zA-Z0-9]+|\W+\s+')
+def strip_edge_punc(s, punc=PUNC):
+    if not isinstance(s, basestring):
+        return [strip_edge_punc(s0, punc) for s0 in s]
+    return str.strip(s, punc)
+
+
+WORD_SPLIT_IGNORE_EXTERNAL_APOSTROPHIES = re.compile('\W*\s\'{1,3}|\'{1,3}\W+|[^-\'_.a-zA-Z0-9]+|\W+\s+')
 WORD_SPLIT_PERMISSIVE = re.compile('[^-\'_.a-zA-Z0-9]+|[^\'a-zA-Z0-9]\s\W*')
-SENTENCE_SPLIT = re.compile('[.?!](\W+)|')
+SENTENCE_SPLIT = re.compile('[.?!](\W+)|$')
 
 
 # this regex assumes "s' " is the end of a possessive word and not the end of an inner quotation, e.g. He said, "She called me 'Hoss'!"
-def get_words(s, splitter_regex=WORD_SPLIT_PERMISSIVE, preprocessor=None, blacklist=None, whitelist=None):
+def get_words(s, splitter_regex=WORD_SPLIT_IGNORE_EXTERNAL_APOSTROPHIES, 
+              preprocessor=strip_HTML, postprocessor=strip_edge_punc, blacklist=None, whitelist=None):
     r"""Segment words (tokens), returning a list of all tokens (but not the separators/punctuation)
 
     >>> get_words('He said, "She called me \'Hoss\'!". I didn\'t hear.')
@@ -36,6 +47,8 @@ def get_words(s, splitter_regex=WORD_SPLIT_PERMISSIVE, preprocessor=None, blackl
     >>> get_words('The foxes\' oh-so-tiny den was 2empty!')
     ['The', 'foxes', 'oh-so-tiny', den', 'was', '2empty']
     """
+    postprocessor = postprocessor or str
+    preprocessor = preprocessor or str
     blacklist = blacklist or get_words.blacklist
     whitelist = whitelist or get_words.whitelist
     try:
@@ -58,9 +71,10 @@ def get_words(s, splitter_regex=WORD_SPLIT_PERMISSIVE, preprocessor=None, blackl
         pass
     if isinstance(splitter_regex, basestring):
         splitter_regex = re.compile(splitter_regex)
-    if whitelist:
-        return [word for word in splitter_regex.split(s) if word in whitelist and word not in blacklist]
-    return [word for word in splitter_regex.split(s) if word not in blacklist]
+    words = map(postprocessor, splitter_regex.split(s))
+    if isinstance(whitelist, (list, tuple, set)):
+        return [word for word in words if word in whitelist and word not in blacklist]
+    return [word for word in words if word not in blacklist]
 get_words.blacklist = ('', None, '\'', '.', '_', '-')
 get_words.whitelist = None
 
