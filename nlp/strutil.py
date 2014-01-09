@@ -1,8 +1,11 @@
 import re
 import fnmatch
 import os
-from scipy.sparse import csr_matrix  # compressed, sparse, row-wise (slow column slicing)
 from collections import Mapping, Counter
+try:
+    from scipy.sparse import csr_matrix  # compressed, sparse, row-wise (slow column slicing)
+except:
+    csr_matrix = None
 
 import string
 
@@ -111,6 +114,7 @@ def document_words(words, article_words):
 class Occurences(object):
     """Word/string occurrence matrix, words in rows, documents in columns
     """
+
     def __init__(self, matrix=None, words=None):
         #self.N = 1000000  # 1 million words should keep collisions to a minimum
         self.words = ('',)
