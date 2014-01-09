@@ -8,7 +8,7 @@ from collections import Mapping, Counter
 
 
 def strip_HTML(s):
-    """Silly HTML stripper"""
+    """Simple, clumsy, slow HTML tag stripper"""
     result = ''
     total = 0
     for c in s:
