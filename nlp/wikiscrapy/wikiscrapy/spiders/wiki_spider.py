@@ -65,6 +65,7 @@ class WikiSpider(CrawlSpider):
         #   3. save to database (so that json doesn't have to be loaded manually)
         #   4. use django Models rather than scrapy.Item model
         #   5. incorporate into a django app (or make it a django app configurable through a web interface)
+        #   6. incrementally build occurrence matrix rather than saving raw data to django/postgres db
         print '='*20 + ' PARSE ' + '='*20
         sel = Selector(response)
         a = WikiItem()
