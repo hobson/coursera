@@ -4,13 +4,16 @@ from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
 
 from wikiscrapy.items import WikiItem
 import dateutil.parser
+from time import sleep
 
 class WikiSpider(CrawlSpider):
 
     name = 'wiki'
     allowed_domains = ['en.wikipedia.org', 'en.wiktionary.org']
     start_urls = ['''https://en.wikipedia.org/wiki/Paul_Erd%C5%91s''']
-    rules = [Rule(SgmlLinkExtractor(allow=['/wiki/.*']), 'parse')]
+    rules = [
+        Rule(SgmlLinkExtractor(allow=['/wiki/.*']), follow=True, process_links='filter_links'),
+        Rule(SgmlLinkExtractor(allow=['/wiki/.*']), 'parse_response')]
 
     def clean_list(self, l):
         ans = ['']
@@ -32,7 +35,14 @@ class WikiSpider(CrawlSpider):
         ans = ' '.join([s.strip() for s in dt])
         return dateutil.parser.parse(ans)
 
-    def parse(self, response):
+    def filter_links(self, links):
+        print '-'*20 + ' LINKS ' + '-'*20
+        print links
+        print '-'*20 + '-------' + '-'*20
+        sleep(1.1)
+        return links
+
+    def parse_response(self, response):
         sel = Selector(response)
         a = WikiItem()
         a['url'] = response.url
