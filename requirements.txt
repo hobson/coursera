@@ -5,3 +5,7 @@ nltk==2.0.4
 numpy==1.7.1
 wsgiref==0.1.2
 sympy
+scrapy
+python-dateutil
+
+
