@@ -1,1 +1,2 @@
 *.pyc
+nlp/wikiscrapy/*.json
