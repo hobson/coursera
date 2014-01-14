@@ -12,3 +12,5 @@ class WikiItem(Item):
     abstract = Field()
     text = Field()
     modified = Field()
+    crawled = Field()
+    count = Field()

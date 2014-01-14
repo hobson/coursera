@@ -8,8 +8,9 @@ except:
     csr_matrix = None
 
 import string
+import dateutil.parser
 
-PUNC = string.punctuation
+PUNC = unicode(string.punctuation)
 
 #import nltk
 
@@ -31,8 +32,8 @@ def strip_HTML(s):
 
 def strip_edge_punc(s, punc=PUNC):
     if not isinstance(s, basestring):
-        return [strip_edge_punc(s0, punc) for s0 in s]
-    return str.strip(s, punc)
+        return [strip_edge_punc(unicode(s0), punc) for s0 in s]
+    return s.strip(punc)
 
 
 WORD_SPLIT_IGNORE_EXTERNAL_APOSTROPHIES = re.compile('\W*\s\'{1,3}|\'{1,3}\W+|[^-\'_.a-zA-Z0-9]+|\W+\s+')
@@ -50,8 +51,8 @@ def get_words(s, splitter_regex=WORD_SPLIT_IGNORE_EXTERNAL_APOSTROPHIES,
     >>> get_words('The foxes\' oh-so-tiny den was 2empty!')
     ['The', 'foxes', 'oh-so-tiny', den', 'was', '2empty']
     """
-    postprocessor = postprocessor or str
-    preprocessor = preprocessor or str
+    postprocessor = postprocessor or unicode
+    preprocessor = preprocessor or unicode
     blacklist = blacklist or get_words.blacklist
     whitelist = whitelist or get_words.whitelist
     try:
@@ -176,3 +177,28 @@ class Occurences(object):
 
     def __repr__(self):
         return 'Occurences(%s, %s)' % (self.matrix.todense(), self.words)
+
+
+def clean_wiki_datetime(dt):
+    """
+    >>> clean_wiki_datetime([u'11 January', u'2014', u'17', u'54'])
+    datetime.datetime(2014, 1, 11, 17, 54) 
+    >>> clean_wiki_datetime([u'8 January', u'2014', u'00', u'46'])
+    datetime.datetime(2014, 1, 8, 0, 46)
+    """
+    at_i = None
+    for i, s in enumerate(dt):
+        if s.endswith('at'):
+            dt[i] = dt[i][:-3]
+            at_i = i
+    if at_i is not None and len(dt) > (at_i + 1) and dt[at_i + 1] and not ':' in dt[at_i + 1]:
+        dt = dt[:at_i] + [dt[at_i + 1].strip() + ':' + dt[at_i + 2].strip()]
+    elif len(dt) == 4:
+        dt = dt[:2] + [dt[2] + ':' + dt[3]]
+    ans = ' '.join([s.strip() for s in dt])
+    try:
+        return dateutil.parser.parse(ans)
+    except Exception as e:
+        from traceback import format_exc
+        print format_exc(e) +  '\n^^^ Exception caught ^^^\nWARN: Failed to parse datetime string %r\n      from list of strings %r' % (ans, dt)
+        return ans
