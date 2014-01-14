@@ -70,7 +70,7 @@ def get_wsurl(opts, path):
 
 def jsonrpc_call(opts, path, method, *args, **kwargs):
     url = get_wsurl(opts, path)
-    print(repr((url, method, args, kwargs)))
+    # print(repr((url, method, args, kwargs)))
     return jsonrpc_client_call(url, method, *args, **kwargs)
 
 def json_get(opts, path):
