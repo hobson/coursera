@@ -1,5 +1,8 @@
 MSGS = []
 
+from collections import Counter
+import string
+
 ciphertexts = [
     r'315c4eeaa8b5f8aaf9174145bf43e1784b8fa00dc71d885a804e5ee9fa40b16349c146fb778cdf2d3aff021dfff5b403b510d0d0455468aeb98622b137dae857553ccd8883a7bc37520e06e515d22c954eba5025b8cc57ee59418ce7dc6bc41556bdb36bbca3e8774301fbcaa3b83b220809560987815f65286764703de0f3d524400a19b159610b11ef3e',
     r'234c02ecbbfbafa3ed18510abd11fa724fcda2018a1a8342cf064bbde548b12b07df44ba7191d9606ef4081ffde5ad46a5069d9f7f543bedb9c861bf29c7e205132eda9382b0bc2c5c4b45f919cf3a9f1cb74151f6d551f4480c82b2cb24cc5b028aa76eb7b4ab24171ab3cdadb8356f',
@@ -21,6 +24,8 @@ def strxor(a, b):     # xor two strings of different lengths
     else:
         return "".join([chr(ord(x) ^ ord(y)) for (x, y) in zip(a, b[:len(a)])])
 
+def hexxor(a, b):
+    return strxor(a.decode('hex'), b.decode('hex')).encode('hex')
 
 def random(size=16):
     return open("/dev/urandom").read(size)
@@ -40,7 +45,29 @@ def main_encrypt():
 
 
 def main_analyze():
-    xored = ciphertexts[0].decode('hex')
+    # ' ' =       0010 0000
+    # 'A' = 65 =  0100 0001
+    # 'Z' = 90 =  0101 1010
+    # 'a' = 97 =  0110 0001
+    # 'z' = 122 = 0111 1010
+    xored = []
+    # to get some real statistics should xor all combinations of pairs, but this is just a quick check
     for i in range(1, len(ciphertexts)):
-        xored = strxor(xored, ciphertexts[i].decode('hex'))
-    print xored
+        xored += [hexxor(ciphertexts[i - 1], ciphertexts[i]).decode('hex')]
+    
+    source_symbols = ''.join([chr(o) for o in range(256) if (chr(o) in string.letters + ' ')])
+    cipher_symbols = '_' * 256
+
+    code = dict(zip(source_symbols, cipher_symbols))
+
+    ciphered_letters = strxor(' ' * 26 * 2 + ' ', string.letters + ' ')
+    print ciphered_letters
+    print len(ciphered_letters)
+    for i, c in enumerate(string.letters + ' '):
+        code[c] = ciphered_letters[i]
+
+    for pair in xored:
+        print pair.translate(source_symbols, cipher_symbols)
+        print ''.join(c if c in cipher_symbols + ' ' else '_' for c in pair)
+        
+
