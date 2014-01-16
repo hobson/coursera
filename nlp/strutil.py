@@ -1,14 +1,18 @@
 import re
 import fnmatch
 import os
+import datetime
+import pytz
+import string
+
 from collections import Mapping, Counter
+
+import dateutil.parser
 try:
     from scipy.sparse import csr_matrix  # compressed, sparse, row-wise (slow column slicing)
 except:
     csr_matrix = None
 
-import string
-import dateutil.parser
 
 PUNC = unicode(string.punctuation)
 
@@ -178,27 +182,65 @@ class Occurences(object):
     def __repr__(self):
         return 'Occurences(%s, %s)' % (self.matrix.todense(), self.words)
 
+# MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+# MONTH_PREFIXES = [m[:3] for m in MONTHS]
+# MONTH_SUFFIXES = [m[3:] for m in MONTHS]
+# SUFFIX_LETTERS = ''.join(set(''.join(MONTH_SUFFIXES)))
 
-def clean_wiki_datetime(dt):
+RE_MONTH_NAME = re.compile('(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[acbeihmlosruty]*', re.IGNORECASE)
+
+
+def make_tz_aware(dt, tz='UTC'):
+    """Add timezone information to a datetime object, only if it is naive."""
+    tz = dt.tzinfo or tz
+    try:
+        tz = pytz.timezone(tz)
+    except AttributeError:
+        pass
+    return tz.localize(dt)
+
+
+def clean_wiki_datetime(dt, squelch=False):
     """
     >>> clean_wiki_datetime([u'11 January', u'2014', u'17', u'54'])
     datetime.datetime(2014, 1, 11, 17, 54) 
     >>> clean_wiki_datetime([u'8 January', u'2014', u'00', u'46'])
     datetime.datetime(2014, 1, 8, 0, 46)
     """
-    at_i = None
-    for i, s in enumerate(dt):
-        if s.endswith('at'):
-            dt[i] = dt[i][:-3]
-            at_i = i
-    if at_i is not None and len(dt) > (at_i + 1) and dt[at_i + 1] and not ':' in dt[at_i + 1]:
-        dt = dt[:at_i] + [dt[at_i + 1].strip() + ':' + dt[at_i + 2].strip()]
-    elif len(dt) == 4:
-        dt = dt[:2] + [dt[2] + ':' + dt[3]]
-    ans = ' '.join([s.strip() for s in dt])
+    if isinstance(dt, datetime.datetime):
+        return dt
+    elif not isinstance(dt, basestring):
+        dt = ' '.join(dt)
     try:
-        return dateutil.parser.parse(ans)
+        return make_tz_aware(dateutil.parser.parse(dt))
+    except:
+        print("Failed to parse %r" % dt)
+    dt = [s.strip() for s in dt.split(' ')]
+    # get rid of any " at " or empty strings
+    dt = [s for s in dt if s and s.lower() != 'at']
+
+    # deal with the absence of :'s in wikipedia datetime strings
+
+    if RE_MONTH_NAME.match(dt[0]) or RE_MONTH_NAME.match(dt[1]):
+        if len(dt) >= 5:
+            dt = dt[:-2] + [dt[-2].strip(':') + ':' + dt[-1].strip(':')]
+            return clean_wiki_datetime(' '.join(dt))
+        elif len(dt) == 4 and (len(dt[3]) == 4 or len(dt[0]) == 4):
+            dt[:-1] + ['00']
+            return clean_wiki_datetime(' '.join(dt))
+    elif RE_MONTH_NAME.match(dt[-2]) or RE_MONTH_NAME.match(dt[-3]):
+        if len(dt) >= 5:
+            dt = [dt[0].strip(':') + ':' + dt[1].strip(':')] + dt[2:]
+            return clean_wiki_datetime(' '.join(dt))
+        elif len(dt) == 4 and (len(dt[-1]) == 4 or len(dt[-3]) == 4):
+            dt = [dt[0], '00'] + dt[1:]
+            return clean_wiki_datetime(' '.join(dt))
+
+    try:
+        return make_tz_aware(dateutil.parser.parse(' '.join(dt)))
     except Exception as e:
-        from traceback import format_exc
-        print format_exc(e) +  '\n^^^ Exception caught ^^^\nWARN: Failed to parse datetime string %r\n      from list of strings %r' % (ans, dt)
-        return ans
+        if squelch:
+            from traceback import format_exc
+            print format_exc(e) +  '\n^^^ Exception caught ^^^\nWARN: Failed to parse datetime string %r\n      from list of strings %r' % (' '.join(dt), dt)
+            return dt
+        raise(e)
