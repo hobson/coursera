@@ -1,3 +1,10 @@
+"""Show why reusing a key is a bad idea, especially if msg is ascii text or other known pattern
+
+>>> main_decipher(main_encrypt())
+
+"""
+
+
 MSGS = []
 
 from collections import Counter
@@ -100,7 +107,7 @@ def main_decipher(ciphertexts=CIPHERTEXTS):
         for j in range(i + 1, N):
             k = improve_key(k, ciphertexts[i].decode('hex'), ciphertexts[j].decode('hex'))
             print k.encode('hex')
-            print [sparse_strxor(k, ct.decode('hex'), a_blank=blank) for ct in CIPHERTEXTS]
+            print [sparse_strxor(k, ct.decode('hex'), a_blank=blank) for ct in ciphertexts]
 
             # nontarget_xor = hexxor(ciphertexts[i], ciphertexts[j]).decode('hex')
             # deciphered = ''.join(t if ord(c) == 0 else blank for (c, t) in pair_up(nontarget_xor, xored[i]))
@@ -108,4 +115,4 @@ def main_decipher(ciphertexts=CIPHERTEXTS):
             #     print deciphered
             # #same = retain_same(xored[i], xored[j])
             # target = fill_blanks(target, deciphered, blank=blank)
-    return [sparse_strxor(k, ct.decode('hex'), a_blank=blank) for ct in CIPHERTEXTS]
+    return [sparse_strxor(k, ct.decode('hex'), a_blank=blank) for ct in ciphertexts]
