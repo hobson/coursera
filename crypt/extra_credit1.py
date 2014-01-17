@@ -28,13 +28,33 @@ def strxor(a, b):     # xor two strings of different lengths
     return "".join([chr(ord(x) ^ ord(y)) for (x, y) in pair_up(a, b)])
 
 
+def sparse_strxor(a, b, a_blank='_', b_blank=None):     # xor two strings of different lengths
+    return ''.join([chr(ord(x) ^ ord(y)) if (x is not a_blank and y is not b_blank) else a_blank for (x, y) in pair_up(a, b)])
+
+
 def retain_same(a, b, blank='_'):  # return a string of letters that are the same in a and b, reataining their position
     return ''.join([x if x == y else blank for (x, y) in pair_up(a, b)])
 
 
-def fill_blanks(a, b, blank='_', allowed=dict((c, chr(ord(' ') ^ ord(c))) for c in string.letters + chr(0))):     # return a string of letters that are the same in a and b, reataining their position
+ALL256 = dict((chr(x), chr(x)) for x in range(256))
+SPACE_XORED_ASCII = dict((c, chr(ord(' ') ^ ord(c))) for c in string.letters + chr(0))
+
+
+def fill_blanks(a, b, blank='_', allowed=SPACE_XORED_ASCII):   # return a string of letters that are the same in a and b, reataining their position
     return ''.join([x if y is blank or x is not blank or y not in allowed else allowed[y]
                     for (x, y) in pair_up(a, b)])
+
+
+def improve_key(k, a, b, allowed=ALL256, blank='_'):
+    xored = strxor(a, b)
+    N = len(xored)
+    msg_aorb = fill_blanks(blank * N, xored, allowed=SPACE_XORED_ASCII)
+    k_a = sparse_strxor(msg_aorb, a, a_blank=blank, b_blank=None)
+    k_b = sparse_strxor(msg_aorb, b, a_blank=blank, b_blank=None)
+    # FIXME: ord('_') not allowed as a key value!?
+    k = fill_blanks(k, ''.join(kkx if kkx == x else blank for (kkx, x) in pair_up(strxor(k_a, a), a)), allowed=allowed, blank=blank)
+    k = fill_blanks(k, ''.join(kky if kky == y else blank for (kky, y) in pair_up(strxor(k_b, b), b)), allowed=allowed, blank=blank)
+    return k
 
 
 def hexxor(a, b):
@@ -58,31 +78,34 @@ def main_encrypt(msgs=MSGS):
     return [encrypt(key, msg) for msg in msgs]
 
 
-def main_analyze(ciphertexts=CIPHERTEXTS):
+def main_decipher(ciphertexts=CIPHERTEXTS):
     blank = '_'
     # ' ' =       0010 0000
     # 'A' = 65 =  0100 0001
     # 'Z' = 90 =  0101 1010
     # 'a' = 97 =  0110 0001
     # 'z' = 122 = 0111 1010
-    xored = []
-    # to get some real statistics should xor all combinations of pairs, but this is just a quick check
-    for i in range(len(ciphertexts) - 1):
-        xored += [''.join([hexxor(ciphertexts[i], ciphertexts[-1]).decode('hex')])]
 
-    space_xor_letters = strxor(' ' * 26 * 2 + ' ', string.letters + ' ')
-    print space_xor_letters
+    # to get some real statistics should xor all combinations of pairs, but this is just a quick check
+
+    #space_xor_letters = strxor(' ' * 26 * 2 + ' ', string.letters + ' ')
+    #print space_xor_letters
 
     # so if the letter is the same in more than one xored pair of messages, then the char represents a valid deciphering
-    target = '_' * max(len(pair) for pair in xored)
+    #target = '_' * max(len(pair) for pair in xored)
 
-    for i in range(len(xored) - 1):
-        for j in range(i + 1, len(xored) - 1):
-            nontarget_xor = ''.join([hexxor(ciphertexts[i], ciphertexts[j]).decode('hex')])
-            deciphered = ''.join(t if ord(c) == 0 else blank for (c, t) in pair_up(nontarget_xor, xored[i]))
-            if any(c is not '_' for c in deciphered):
-                print deciphered
-            #same = retain_same(xored[i], xored[j])
-            target = fill_blanks(target, deciphered, blank=blank)
+    k = blank * max(len(ct.decode('hex')) for ct in ciphertexts)
+    N = len(ciphertexts)
+    for i in range(N):
+        for j in range(i + 1, N):
+            k = improve_key(k, ciphertexts[i].decode('hex'), ciphertexts[j].decode('hex'))
+            print k.encode('hex')
+            print [sparse_strxor(k, ct.decode('hex'), a_blank=blank) for ct in CIPHERTEXTS]
 
-    return target
+            # nontarget_xor = hexxor(ciphertexts[i], ciphertexts[j]).decode('hex')
+            # deciphered = ''.join(t if ord(c) == 0 else blank for (c, t) in pair_up(nontarget_xor, xored[i]))
+            # if any(c is not '_' for c in deciphered):
+            #     print deciphered
+            # #same = retain_same(xored[i], xored[j])
+            # target = fill_blanks(target, deciphered, blank=blank)
+    return [sparse_strxor(k, ct.decode('hex'), a_blank=blank) for ct in CIPHERTEXTS]
