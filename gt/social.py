@@ -6,39 +6,34 @@ def tie_breaker_choice(names, method='name', preferences=None, votes=None):
         return sorted(names)[0]
 
 
-def plurality_choice(preferences, tie_breaker='name'):
+def plurality_choice(preferences, agent_weights=None, tie_breaker='name'):
     """"Return the winner using the plurality voting method (most prefered by most agents)
 
     >>> plurality_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
+    'C'
+    >>> plurality_choice([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+    'A'
+    >>> plurality_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
     'A'
     """
-    try:
-        N = max(len(p) for p in preferences)
-    except:
-        N = max(len(list(p)) for p in preferences)
-    for rank in range(N):
-        for voter, plist in enumerate(preferences):
-    for voter, plist in enumerate(preferences):
-        for order, candidate in enumerate(plist):
-            scores[candidate] = scores.get(candidate, 0) + N - order
-    return tuple(c2 for(s2, c2) in sorted([(s1, c1) for c1, s1 in scores.items()], reverse=True)), scores
+    N = get_ranking_len_from_preferences(preferences)
+    return borda(preferences, agent_weights, rank_weights=[1] + [0] * (N - 1))
 
 
-def borda(preferences):
+def borda(preferences, agent_weights=None, rank_weights=None, candidate_weights=None):
     """Calculate the rank, and scores of a Borda selection from ordered lists of preferences (first preferred over last).
 
     >>> A, B, C, D = 'A', 'B', 'C', 'D'
     >>> borda(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
-    None
+    'D'
     """
     scores = {}
-    try:
-        N = max(len(p) for p in preferences)
-    except:
-        N = max(len(list(p)) for p in preferences)
-    for voter, plist in enumerate(preferences):
-        for order, candidate in enumerate(plist):
-            scores[candidate] = scores.get(candidate, 0) + N - order
+    N = get_ranking_len_from_preferences(preferences)
+    rank_weights = rank_weights or list(range(N - 1, -1, -1))
+    agent_weights = agent_weights or [1] * len(preferences)
+    for agent, plist in enumerate(preferences):
+        for rank, candidate in enumerate(plist):
+            scores[candidate] = scores.get(candidate, 0) + agent_weights[agent] * rank_weights[rank]
     return tuple(c2 for(s2, c2) in sorted([(s1, c1) for c1, s1 in scores.items()], reverse=True)), scores
 
 
@@ -50,12 +45,16 @@ def pairwise_elimination(preferences=None, candidates_sorted=None):
     'C'
     >>> pairwise_elimination(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
     'A'
+    >>> pairwise_elimination([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+    'D'
+
+    # TODO: call borda() or plurality_choice() within these loops to allow weights
     """
     reverse = None
     if candidates_sorted in (None, True, False, 1, -1):
         if candidates_sorted in (True, False, 1, -1):
             reverse = candidates_sorted
-        candidates = get_candidates_from_preferences
+        candidates = get_candidates_from_preferences(preferences)
     else:
         candidates = candidates_sorted
 
@@ -97,6 +96,13 @@ def get_candidates_from_preferences(preferences):
     return candidates
 
 
+def get_ranking_len_from_preferences(preferences):
+    try:
+        return max(len(p) for p in preferences)
+    except:
+        return max(len(list(p)) for p in preferences)
+
+
 def condorcet_winner(preferences=None):
     """Find the winner in a set of outcome preference "votes".
 
@@ -111,9 +117,9 @@ def condorcet_winner(preferences=None):
         for j, c2 in enumerate(candidates[i+1:]):
             votes = 0
             for plist in preferences:
-                if index(c1) < index(c2):
+                if candidates.index(c1) < candidates.index(c2):
                     votes += 1
-                elif index(c2) < index(c2):
+                elif candidates.index(c2) < candidates.index(c2):
                     votes -= 1
             if votes >= 0:  # tie goes to first
                 winner[i] += [c1]
