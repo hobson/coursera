@@ -110,6 +110,7 @@ def condorcet_winner(preferences=None):
     >>> condorcet_winner(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
     None
     """
+    print "WARNING: untested!"
     candidates = get_candidates_from_preferences(preferences)
     N = len(candidates)
     winner = [[] for i in range(N)]
