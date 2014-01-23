@@ -1,8 +1,30 @@
 
 A, B, C, D = 'A', 'B', 'C', 'D'
 
+def tie_breaker_choice(names, method='name', preferences=None, votes=None):
+    if method.lower().strip() == 'name':
+        return sorted(names)[0]
 
-def borda(preferences=None):
+
+def plurality_choice(preferences, tie_breaker='name'):
+    """"Return the winner using the plurality voting method (most prefered by most agents)
+
+    >>> plurality_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
+    'A'
+    """
+    try:
+        N = max(len(p) for p in preferences)
+    except:
+        N = max(len(list(p)) for p in preferences)
+    for rank in range(N):
+        for voter, plist in enumerate(preferences):
+    for voter, plist in enumerate(preferences):
+        for order, candidate in enumerate(plist):
+            scores[candidate] = scores.get(candidate, 0) + N - order
+    return tuple(c2 for(s2, c2) in sorted([(s1, c1) for c1, s1 in scores.items()], reverse=True)), scores
+
+
+def borda(preferences):
     """Calculate the rank, and scores of a Borda selection from ordered lists of preferences (first preferred over last).
 
     >>> A, B, C, D = 'A', 'B', 'C', 'D'
