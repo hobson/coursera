@@ -6,6 +6,36 @@ def tie_breaker_choice(names, method='name', preferences=None, votes=None):
         return sorted(names)[0]
 
 
+def unlistify(l, depth=1, typ=list, get=None):
+    """Return the desired element in a list ignoring the rest.
+
+    >>> unlistify([1,2,3])
+    1
+    >>> unlistify([1,[4, 5, 6],3], get=1)
+    [4, 5, 6]
+    >>> unlistify([1,[4, 5, 6],3], depth=2, get=1)
+    5
+    >>> unlistify([1,(4, 5, 6),3], depth=2, get=1)
+    (4, 5, 6)
+    >>> unlistify([1,2,(4, 5, 6)], depth=2, get=2)
+    (4, 5, 6)
+    >>> unlistify([1,2,(4, 5, 6)], depth=2, typ=(list, tuple), get=2)
+    6
+    """
+    i = 0
+    if depth is None:
+        depth = 1
+    index_desired = get or 0
+    while i < depth and isinstance(l, typ):
+        if len(l):
+            if len(l) > index_desired:
+                l = l[index_desired]
+                i += 1
+        else:
+            return l
+    return l
+
+
 def plurality_choice(preferences, agent_weights=None, tie_breaker='name'):
     """"Return the winner using the plurality voting method (most prefered by most agents)
 
@@ -14,10 +44,38 @@ def plurality_choice(preferences, agent_weights=None, tie_breaker='name'):
     >>> plurality_choice([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
     'A'
     >>> plurality_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
-    'A'
+    
+    >>> plurality_choice([(A, B, D, C)] * 300 + [(D, C, B, A)] * 400 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+    """
+    ranking, score = plurality_welfare(preferences, agent_weights, tie_breaker)
+    winners = [ranking[0]]
+    for c in enumerate(ranking[1:]):
+        if score[c] > score[winners[0]]:
+            raise RuntimeError('The plurality_welfare() function output an invalid ranking list or score dict. Candidate %s had a score of %s and rank %s which exceeds the 1st ranked candidate, %s, with a score of %s'
+                (c, score[c], ranking.index(c) + 1, winners[0], score[winners[0]]))
+        elif score[c] == score[winners[0]]:
+            winners += [c]
+        else:
+            break
+    return unlistify(winners)
+
+
+def plurality_welfare(preferences, agent_weights=None, tie_breaker='name'):
+    """"Return the winner using the plurality voting method (most prefered by most agents)
+
+    >>> plurality_welfare(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
+    'C'
+    >>> plurality_welfare([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+    (('A', 'D', 'B', 'C'), {'A': 400, 'B': 200, 'C': 102, 'D': 300})
+    >>> plurality_welfare(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
+     (('A', 'D', 'B', 'C'), {'A': 400, 'C': 102, 'B': 200, 'D': 300})
+    >>> plurality_welfare([(A, B, D, C)] * 300 + [(D, C, B, A)] * 400 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 
+        2)      (('D', 'A', 'B', 'C'), {'A': 300, 'C': 102, 'B': 200, 'D': 400})
+
     """
     N = get_ranking_len_from_preferences(preferences)
     return borda(preferences, agent_weights, rank_weights=[1] + [0] * (N - 1))
+
 
 
 def borda(preferences, agent_weights=None, rank_weights=None, candidate_weights=None):
@@ -109,25 +167,40 @@ def condorcet_winner(preferences=None):
     >>> A, B, C, D = 'A', 'B', 'C', 'D'
     >>> condorcet_winner(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
     None
+    >>> condorcet_winner(((A, B, C), (B, C, A), (C, B, A)))
+    'B'
     """
-    print "WARNING: untested!"
     candidates = get_candidates_from_preferences(preferences)
     N = len(candidates)
-    winner = [[] for i in range(N)]
-    for i, c1 in enumerate(candidates[:-1]):
+    winners = [[None for j in range(N)] for i in range(N)]
+    row_candidates = candidates[:-1]
+    for i, c1 in enumerate(row_candidates):
+        # a candidate vs herself isn't a real match, so counted as a win
+        winners[i][i] = c1
+        # for matches against all other candidates
         for j, c2 in enumerate(candidates[i+1:]):
             votes = 0
             for plist in preferences:
-                if candidates.index(c1) < candidates.index(c2):
+                if plist.index(c1) < plist.index(c2):
                     votes += 1
-                elif candidates.index(c2) < candidates.index(c2):
+                elif plist.index(c2) < plist.index(c1):
                     votes -= 1
-            if votes >= 0:  # tie goes to first
-                winner[i] += [c1]
+            if votes > 0:  # tie goes to first
+                winners[i][j + i + 1] = c1
             elif votes < 0:
-                winner[i] += [c2]
-    return winner
-
+                winners[i][j + i + 1] = c2
+            else:
+                winners[i][j + i + 1] = (c1, c2)
+            # mirror the off-diagnoal matrix
+            winners[j + i + 1][i] = winners[i][j + i + 1]
+    condorcet_statuses = [all(cw == c1 for cw in winners[i]) for i, c1 in enumerate(candidates)]
+    condorcet_winners = tuple(candidates[i] for i, status in enumerate(condorcet_statuses) if status)
+    if not condorcet_winners:
+        return None
+    if len(condorcet_winners) == 1:
+        return condorcet_winners[0]
+    # there was a tie
+    return condorcet_winners
 
 # That's a good question Gabrieli, but my understanding was that video 3 was about the paradoxical outcomes of social choice function (voting schemes) that return just a winner, not social welfare functions. The questions are about winners/choices, not rankings. But I re-listened Matt's description of pairwise elimination in lecture 2, and I can see why the accepted answer is that no pairwise elimination scheme can result in the Condorcet winner losing. Matt assumes that all alternatives are considered (in his legislature example), and ignores the problem of a tie. It is definitely silly of me to assume that a tie might be resolved with a coin flip or voter seniority. But it is nonetheless a theoretically a valid pairwise elimination voting mechanism that would fail to elect the Condorcet winner: 
 
