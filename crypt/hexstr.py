@@ -1,13 +1,21 @@
-"""Show why reusing a key is a bad idea, especially if msg is ascii text or other known pattern
+"""Cryptography primatives and operators for ASCII (and hex) strings
 
->>> main_decipher(main_encrypt())
+XOR
+encrypt
+decrypt
+convert ASCII str to hexstr
+convert hexstr to ASCII str
 
+Show why reusing a key is a bad idea, especially if msg is ascii text or other known pattern
+
+>>> main_decipher(main_encrypt('hello world'))
+'hello world'
 """
 
 
 MSGS = []
 
-from collections import Counter
+#from collections import Counter
 import string
 
 CIPHERTEXTS = [
@@ -63,6 +71,12 @@ def improve_key(k, a, b, allowed=ALL256, blank='_'):
     k = fill_blanks(k, ''.join(kky if kky == y else blank for (kky, y) in pair_up(strxor(k_b, b), b)), allowed=allowed, blank=blank)
     return k
 
+
+def hex2str(h):
+    return h.decode('hex')
+
+def str2hex(s):
+    return s.encode('hex')
 
 def hexxor(a, b):
     return strxor(a.decode('hex'), b.decode('hex')).encode('hex')

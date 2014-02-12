@@ -3,7 +3,6 @@ import fnmatch
 import os
 import datetime
 import pytz
-import string
 
 from collections import Mapping, Counter
 
@@ -13,78 +12,11 @@ try:
 except:
     csr_matrix = None
 
+from pug.nlp.util import get_words
 
-PUNC = unicode(string.punctuation)
 
 #import nltk
 
-
-def strip_HTML(s):
-    """Simple, clumsy, slow HTML tag stripper"""
-    result = ''
-    total = 0
-    for c in s:
-        if c == '<':
-            total = 1
-        elif c == '>':
-            total = 0
-            result += ' '
-        elif total == 0:
-            result += c
-    return result
-
-
-def strip_edge_punc(s, punc=PUNC):
-    if not isinstance(s, basestring):
-        return [strip_edge_punc(unicode(s0), punc) for s0 in s]
-    return s.strip(punc)
-
-
-WORD_SPLIT_IGNORE_EXTERNAL_APOSTROPHIES = re.compile('\W*\s\'{1,3}|\'{1,3}\W+|[^-\'_.a-zA-Z0-9]+|\W+\s+')
-WORD_SPLIT_PERMISSIVE = re.compile('[^-\'_.a-zA-Z0-9]+|[^\'a-zA-Z0-9]\s\W*')
-SENTENCE_SPLIT = re.compile('[.?!](\W+)|$')
-
-
-# this regex assumes "s' " is the end of a possessive word and not the end of an inner quotation, e.g. He said, "She called me 'Hoss'!"
-def get_words(s, splitter_regex=WORD_SPLIT_IGNORE_EXTERNAL_APOSTROPHIES, 
-              preprocessor=strip_HTML, postprocessor=strip_edge_punc, blacklist=None, whitelist=None):
-    r"""Segment words (tokens), returning a list of all tokens (but not the separators/punctuation)
-
-    >>> get_words('He said, "She called me \'Hoss\'!". I didn\'t hear.')
-    ['He', 'said', 'She', 'called', 'me', 'Hoss', 'I', "didn't", 'hear.']
-    >>> get_words('The foxes\' oh-so-tiny den was 2empty!')
-    ['The', 'foxes', 'oh-so-tiny', den', 'was', '2empty']
-    """
-    postprocessor = postprocessor or unicode
-    preprocessor = preprocessor or unicode
-    blacklist = blacklist or get_words.blacklist
-    whitelist = whitelist or get_words.whitelist
-    try:
-        s = open(s, 'r')
-    except:
-        pass
-    try:
-        s = s.read()
-    except:
-        pass
-    if not isinstance(s, basestring):
-        try:
-            # flatten the list of lists of words from each obj (file or string)
-            return [word for obj in s for word in get_words(obj)]
-        except:
-            pass
-    try:
-        s = preprocessor(s)
-    except:
-        pass
-    if isinstance(splitter_regex, basestring):
-        splitter_regex = re.compile(splitter_regex)
-    words = map(postprocessor, splitter_regex.split(s))
-    if isinstance(whitelist, (list, tuple, set)):
-        return [word for word in words if word in whitelist and word not in blacklist]
-    return [word for word in words if word not in blacklist]
-get_words.blacklist = ('', None, '\'', '.', '_', '-')
-get_words.whitelist = None
 
 
 def get_file_paths(root='.', pattern=None):
@@ -94,11 +26,6 @@ def get_file_paths(root='.', pattern=None):
         for filename in fnmatch.filter(filenames, '*.c'):
             matches.append(os.path.join(root, filename))
 
-
-def get_sentences(s, regex=SENTENCE_SPLIT):
-    if isinstance(regex, basestring):
-        regex = re.compile(regex)
-    return [sent for sent in regex.split(s) if sent]
 
 
 # use nlp.classifier.Basic

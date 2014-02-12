@@ -1,22 +1,7 @@
 #!/usr/bin/env python
 
 from collections import defaultdict, Counter
-import re
-
-
-def get_words(s):
-    """Identify the features (words) in a string
-
-    TODO: make this a generator to improve memory efficiency
-    """
-    # only alpha words, no numbers
-    splitter = re.compile(r'\W*')
-    # filter after map, unlike collective intelligence which reverses this
-    return filter(get_words.filter_fun, map(get_words.map_fun, splitter.split(s)))
-get_words.map_fun = str.lower
-get_words.max_len = 16
-get_words.min_len = 3
-get_words.filter_fun = lambda x: len(x) >= get_words.min_len and len(x) <= get_words.max_len
+from pug.nlp.util import get_words
 
 
 class Basic:

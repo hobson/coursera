@@ -4,23 +4,15 @@ from collections import defaultdict, Counter
 
 # count[0] = 1-gram counts
 # count[1] = 2-gram counts
-count = 
 count = defaultdict(int)
+fish_count = Counter({'carp': 10, 'eel': 1, 'perch': 3, 'trout': 1, 'salmon': 1, 'perch': 3, 'whitefish': 2})
+fish = list(fish_count)
 count.update(fish)
 
 
-def get_words(s):
-    # only alpha words, no numbers
-    splitter = re.compile(r'\W*')
-    # filter after map, unlike collective intelligence which reverses this
-    return set(filter(filter_fun, map(get_words.map_fun, splitter.splitter(s))))
-get_words.map_fun = lower
-get_words.max_len = 16
-get_words.min_len = 3
-get_words.filter_fun = lambda x: len(x) >= get_words.min_len and len(x) <= get_words.max_len
+from pug.nlp.util import get_words
 
-fish_count = Counter({'carp': 10, 'eel': 1, 'perch': 3, 'trout': 1, 'salmon': 1, 'perch': 3, 'whitefish': 2})
-
+s = ' '.join(fish)
 count = [Counter(get_words(s))]
 
 class Classifier:
@@ -33,7 +25,7 @@ class Classifier:
 
     def increment_feature(self, feature, category):
         "Increase the count for a feature<->category association"
-        feature_count[feature] += Counter((feature,))
+        self.feature_count[feature] += Counter((feature,))
         # self.feature_count.setdefault(feature, Counter())
         # self.feature_count[feature].setdefault(category, 0)
         # self.feature_count[feature][category] += 1
@@ -46,7 +38,7 @@ class Classifier:
     def count_feature_in_category(self, feature, category):
         "Count of feature occurences in a category"
         # using a defaultdict everywhere would take care of this
-        if feature in self.feature_count and category in feature_count(feature):
+        if feature in self.feature_count and category in self.feature_count(feature):
             return float(self.feature_count[feature][category])
         return 0.
 
@@ -65,7 +57,7 @@ class Classifier:
 
     def train(self, item, category):
         features = self.get_features(item)
-        feature_count[feature] += Counter(features)
+        self.feature_count[feature] += Counter(features)
 
 
 N_len = max(c for w, c in count.iteritems())

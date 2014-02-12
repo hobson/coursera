@@ -1,39 +1,10 @@
+from pug.nlp.util import unlistify
 
 A, B, C, D = 'A', 'B', 'C', 'D'
 
 def tie_breaker_choice(names, method='name', preferences=None, votes=None):
     if method.lower().strip() == 'name':
         return sorted(names)[0]
-
-
-def unlistify(l, depth=1, typ=list, get=None):
-    """Return the desired element in a list ignoring the rest.
-
-    >>> unlistify([1,2,3])
-    1
-    >>> unlistify([1,[4, 5, 6],3], get=1)
-    [4, 5, 6]
-    >>> unlistify([1,[4, 5, 6],3], depth=2, get=1)
-    5
-    >>> unlistify([1,(4, 5, 6),3], depth=2, get=1)
-    (4, 5, 6)
-    >>> unlistify([1,2,(4, 5, 6)], depth=2, get=2)
-    (4, 5, 6)
-    >>> unlistify([1,2,(4, 5, 6)], depth=2, typ=(list, tuple), get=2)
-    6
-    """
-    i = 0
-    if depth is None:
-        depth = 1
-    index_desired = get or 0
-    while i < depth and isinstance(l, typ):
-        if len(l):
-            if len(l) > index_desired:
-                l = l[index_desired]
-                i += 1
-        else:
-            return l
-    return l
 
 
 def plurality_choice(preferences, agent_weights=None, tie_breaker='name'):
@@ -59,7 +30,6 @@ def plurality_choice(preferences, agent_weights=None, tie_breaker='name'):
             break
     return unlistify(winners)
 
-
 def plurality_welfare(preferences, agent_weights=None, tie_breaker='name'):
     """"Return the winner using the plurality voting method (most prefered by most agents)
 
@@ -69,9 +39,8 @@ def plurality_welfare(preferences, agent_weights=None, tie_breaker='name'):
     (('A', 'D', 'B', 'C'), {'A': 400, 'B': 200, 'C': 102, 'D': 300})
     >>> plurality_welfare(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
      (('A', 'D', 'B', 'C'), {'A': 400, 'C': 102, 'B': 200, 'D': 300})
-    >>> plurality_welfare([(A, B, D, C)] * 300 + [(D, C, B, A)] * 400 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 
-        2)      (('D', 'A', 'B', 'C'), {'A': 300, 'C': 102, 'B': 200, 'D': 400})
-
+    >>> plurality_welfare([(A, B, D, C)] * 300 + [(D, C, B, A)] * 400 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+    (('D', 'A', 'B', 'C'), {'A': 300, 'C': 102, 'B': 200, 'D': 400})
     """
     N = get_ranking_len_from_preferences(preferences)
     return borda(preferences, agent_weights, rank_weights=[1] + [0] * (N - 1))
