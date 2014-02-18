@@ -1,7 +1,7 @@
 import re
 import urllib
 #from PyCrypto import AES
-import hexstr
+from hexstr import strxor
 
 """
 The CBC decryption algorthm is 
@@ -16,27 +16,37 @@ def website(url=r'http://crypto-class.appspot.com/po?er=f20bdba6ff29eed7b046d1df
     print rest_getter
     base_url, c = url.split(rest_getter)
     print base_url, c
-    print len(c.decode('hex'))
     # discard the last block?  don't need to do this, just following example first
-    c = c.decode('hex')[:-block_size]
+    c = c.decode('hex')
     print len(c)
     N = len(c)
+    BS = block_size
     m = ['_'] * N
-    for j in range(block_size, N):
-        print j, '='*50
-        prefix = c[:N-j]
-        suffix = c[N-j+1:]
-        print 'trying: ' + prefix.encode('hex') + '[]'*j + suffix.encode('hex')
+    for j in range(0, N):
+        SLB0 = N-(((j/BS)+2)*BS)
+        SLBN = N-(((j/BS)+1)*BS)
+        SLBi = N-j-BS
+        LB0 = SLB0 + BS
+        LBN = SLBN + BS
+        LBi = SLBi + BS
+        print j, SLB0, SLBi, SLBN, LB0, LBi, LBN
+        LBhex = c[LB0:LBN].encode('hex')
+        SLB_prefix = chr(0) * (SLBi - SLB0)
+        SLB_suffix = ''.join(m[(LBi+1):LBN])
+        cSLB_suffix = c[SLBi:SLBN]
+        pad = chr((j%BS)+1) * ((j%BS)+1)
+        print '%r: %r' % (j,  (SLB_prefix + chr(0) + SLB_suffix).encode('hex') + LBhex)
+        print '%r: %r' % (j,  (SLB_prefix + pad).encode('hex') + LBhex)
+        print '%r: %r' % (j,  (SLB_prefix + strxor(chr(0) + SLB_suffix, pad)).encode('hex') + LBhex)
         for i in range(256):
-            print i
             g = chr(i)
-            gxorpad = hexstr.strxor(g + ''.join(m[N-j+block_size : N]), chr(j % block_size) * (j - block_size + 1))
-            gc = hexstr.strxor(c[N - j - 1:N-j], gxorpad)
-            gc_str = c[:N - j - 1] + gc + c[-block_size:]
-            response = urllib.urlopen(base_url + rest_getter + gc_str.encode('hex'))
+            SLB = SLB_prefix + strxor(cSLB_suffix, strxor(g + SLB_suffix, pad))
+            new_url = base_url + rest_getter + (c[:SLB0] + SLB).encode('hex') + LBhex
+            response = urllib.urlopen(new_url)
+            print new_url
             if padding_oracle(response):
                 break
-        m[N - j + block_size - 1] = g[0]
+        m[LBi] = g
         print ''.join(m)
     return ''.join(m)
 
