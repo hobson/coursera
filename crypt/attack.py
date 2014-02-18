@@ -11,7 +11,11 @@ m[i] = [XOR(IV, D(k, c[0])] + [XOR(c[i-1], D(k, c[i])) for i in range(1, len(c))
 def website(url=r'http://crypto-class.appspot.com/po?er=f20bdba6ff29eed7b046d1df9fb7000058b1ffb4210a580f748b4ac714c001bd4a61044426fb515dad3f21f18aa577c0bdf302936266926ff37dbf7035d5eeb4',
         mode='CBC',
         get_regex=r'\w*[?][a-zA-Z]+[=]',
-        block_size=16):
+        block_size=16,
+        last_m = 'Ossifrage\t\t\t\t\t\t\t\t\t', 
+        guesses = ''.join(chr(i) for i in (list(range(ord('a'), ord('z')+1)) + list(range(ord('A'), ord('Z')+1)) + list(range(0, ord('A'))) + list(range(ord('Z')+1, ord('a'))) + list(range(ord('z')+1, 256))))  
+        ):
+    N_known = len(last_m)
     rest_getter = re.search(get_regex, url).group()
     print rest_getter
     base_url, c = url.split(rest_getter)
@@ -21,11 +25,11 @@ def website(url=r'http://crypto-class.appspot.com/po?er=f20bdba6ff29eed7b046d1df
     print len(c)
     N = len(c)
     BS = block_size
-    m = ['_'] * N
-    for j in range(0, N):
+    m = ['_'] * (N - N_known) + list(last_m)
+    for j in range(N_known, N):
         SLB0 = N-(((j/BS)+2)*BS)
         SLBN = N-(((j/BS)+1)*BS)
-        SLBi = N-j-BS
+        SLBi = N-j-BS-1
         LB0 = SLB0 + BS
         LBN = SLBN + BS
         LBi = SLBi + BS
@@ -38,16 +42,18 @@ def website(url=r'http://crypto-class.appspot.com/po?er=f20bdba6ff29eed7b046d1df
         print '%r: %r' % (j,  (SLB_prefix + chr(0) + SLB_suffix).encode('hex') + LBhex)
         print '%r: %r' % (j,  (SLB_prefix + pad).encode('hex') + LBhex)
         print '%r: %r' % (j,  (SLB_prefix + strxor(chr(0) + SLB_suffix, pad)).encode('hex') + LBhex)
-        for i in range(256):
-            g = chr(i)
-            SLB = SLB_prefix + strxor(cSLB_suffix, strxor(g + SLB_suffix, pad))
-            new_url = base_url + rest_getter + (c[:SLB0] + SLB).encode('hex') + LBhex
+        for i in range(len(guesses)):
+            g = guesses(i)
+            SLB_guess = strxor(cSLB_suffix, strxor(g + SLB_suffix, pad))
+            guess_hex = (c[:SLBi] + SLB_guess).encode('hex') + LBhex
+            new_url = base_url + rest_getter + guess_hex
             response = urllib.urlopen(new_url)
-            print new_url
+            print response.getcode(), new_url
             if padding_oracle(response):
+                print '%dth character (%d from end) is chr(%d) = %r' % (LBi, j, i, g)
                 break
         m[LBi] = g
-        print ''.join(m)
+        print repr(''.join(m))
     return ''.join(m)
 
 
@@ -61,7 +67,7 @@ def padding_oracle(response):
                          500 for server fault
                          200 for a valid page load
     """
-    return not (padding_oracle.edict.get(response.getcode(), None) == 'pad')
+    return (padding_oracle.edict.get(response.getcode(), None) == 'mac')
 padding_oracle.edict = { 500: 'connection', 404: 'mac', 403: 'pad', 200: 'OK'}
 
 
