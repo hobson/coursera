@@ -82,10 +82,14 @@ padding_oracle.edict = { 500: 'connection', 404: 'mac', 403: 'pad', 200: 'OK'}
 
 def inject(cypher_text=r'20814804c1767293b99f1d9cab3bc3e7ac1e37bfb15599e5f40eef805488281d',
             plain_text=r'Pay Bob 100$',
+            block_size=16,
             desired_plain_text=r'Pay Bob 500$',
             mode='CBC'):
     "Produce the cyphertext for the requested plain text message without know the key!"
-    modified_cypher_text = cypher_text
-    return modified_cypher_text
+    if not mode.lower().strip() == 'cbc':
+        raise NotImplementedError('I only know how to *fix* CBC-authenticated messages.')
+    IV = cypher_text.decode('hex')[:block_size]
+    IV2 = strxor(strxor(IV, plain_text), desired_plain_text)
+    return IV2.encode('hex') + cypher_text[block_size*2:]
 
 
