@@ -43,12 +43,12 @@ def website(url=r'http://crypto-class.appspot.com/po?er=f20bdba6ff29eed7b046d1df
         print '%r: %r' % (j,  (SLB_prefix + pad).encode('hex') + LBhex)
         print '%r: %r' % (j,  (SLB_prefix + strxor(chr(0) + SLB_suffix, pad)).encode('hex') + LBhex)
         for i in range(len(guesses)):
-            g = guesses(i)
+            g = guesses[i]
             SLB_guess = strxor(cSLB_suffix, strxor(g + SLB_suffix, pad))
             guess_hex = (c[:SLBi] + SLB_guess).encode('hex') + LBhex
             new_url = base_url + rest_getter + guess_hex
             response = urllib.urlopen(new_url)
-            print response.getcode(), new_url
+            print repr(g), '->', response.getcode(), new_url
             if padding_oracle(response):
                 print '%dth character (%d from end) is chr(%d) = %r' % (LBi, j, i, g)
                 break
