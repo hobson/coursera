@@ -13,22 +13,32 @@ def website(url=r'http://crypto-class.appspot.com/po?er=f20bdba6ff29eed7b046d1df
         get_regex=r'\w*[?][a-zA-Z]+[=]',
         block_size=16):
     rest_getter = re.search(get_regex, url).group()
+    print rest_getter
     base_url, c = url.split(rest_getter)
+    print base_url, c
+    print len(c.decode('hex'))
+    # discard the last block?  don't need to do this, just following example first
     c = c.decode('hex')[:-block_size]
+    print len(c)
     N = len(c)
-    m = ' ' * N
+    m = ['_'] * N
     for j in range(block_size, N):
+        print j, '='*50
+        prefix = c[:N-j]
+        suffix = c[N-j+1:]
+        print 'trying: ' + prefix.encode('hex') + '[]'*j + suffix.encode('hex')
         for i in range(256):
+            print i
             g = chr(i)
-            gxorpad = hexstr.strxor(g + m[N-j+block_size : N], chr(j % block_size) * (j - block_size + 1))
+            gxorpad = hexstr.strxor(g + ''.join(m[N-j+block_size : N]), chr(j % block_size) * (j - block_size + 1))
             gc = hexstr.strxor(c[N - j - 1:N-j], gxorpad)
             gc_str = c[:N - j - 1] + gc + c[-block_size:]
-            response = urllib.request.urlopen(base_url + rest_getter + gc_str.encode('hex'))
+            response = urllib.urlopen(base_url + rest_getter + gc_str.encode('hex'))
             if padding_oracle(response):
                 break
-        m[N - j + block_size - 1] = g
-        print m
-    return m
+        m[N - j + block_size - 1] = g[0]
+        print ''.join(m)
+    return ''.join(m)
 
 
 def padding_oracle(response):
@@ -36,12 +46,13 @@ def padding_oracle(response):
     Return False if certainly not a valid pad.
     Return None or a probability 0 < p < 1 if it is uncertain whether the padding is valid
     
-    For the coursea app, 403 is returned for an invalid pad,
-                         404 for an invalid mac (or url)
+    For the coursea app, 404 is returned for an invalid pad,
+                         403 for an invalid mac (or url)
                          500 for server fault
+                         200 for a valid page load
     """
-    return padding_oracle.edict.get(response.getcode(), None) == 'pad'
-padding_oracle.edict = { 403: 'pad', 404: 'mac', 500: 'connection', 200: 'OK'}
+    return not (padding_oracle.edict.get(response.getcode(), None) == 'pad')
+padding_oracle.edict = { 500: 'connection', 404: 'mac', 403: 'pad', 200: 'OK'}
 
 
 def inject(cypher_text=r'20814804c1767293b99f1d9cab3bc3e7ac1e37bfb15599e5f40eef805488281d',
