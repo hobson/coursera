@@ -8,12 +8,21 @@ The CBC decryption algorthm is
 m[i] = [XOR(IV, D(k, c[0])] + [XOR(c[i-1], D(k, c[i])) for i in range(1, len(c))] 
 """
 
+def count_frequencies(path='attack.py', lower=str):
+    from collections import Counter
+    text = lower(open(path, "r").read())
+    text += ''.join(chr(i) for i in range(256)) + 'eaiou' * 10 + 'EAIOU' * 2 + ''.join(chr(i) for i in (list(range(ord('a'), ord('z')+1)) + list(range(ord('A'), ord('Z')+1)))) * 3 + ':,|!?.\r\t\t' * 3
+    c = Counter(text)
+    c_list = sorted([(n, k) for k, n in c.iteritems()], reverse=True)
+    return [k for n, k in c_list]
+
+
 def website(url=r'http://crypto-class.appspot.com/po?er=f20bdba6ff29eed7b046d1df9fb7000058b1ffb4210a580f748b4ac714c001bd4a61044426fb515dad3f21f18aa577c0bdf302936266926ff37dbf7035d5eeb4',
         mode='CBC',
         get_regex=r'\w*[?][a-zA-Z]+[=]',
         block_size=16,
-        last_m = 'Ossifrage\t\t\t\t\t\t\t\t\t', 
-        guesses = ''.join(chr(i) for i in (list(range(ord('a'), ord('z')+1)) + list(range(ord('A'), ord('Z')+1)) + list(range(0, ord('A'))) + list(range(ord('Z')+1, ord('a'))) + list(range(ord('z')+1, 256))))  
+        last_m = 'are Squeamish Ossifrage\t\t\t\t\t\t\t\t\t',
+        guesses = count_frequencies()  
         ):
     N_known = len(last_m)
     rest_getter = re.search(get_regex, url).group()
@@ -78,3 +87,5 @@ def inject(cypher_text=r'20814804c1767293b99f1d9cab3bc3e7ac1e37bfb15599e5f40eef8
     "Produce the cyphertext for the requested plain text message without know the key!"
     modified_cypher_text = cypher_text
     return modified_cypher_text
+
+
