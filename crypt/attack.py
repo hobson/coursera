@@ -81,15 +81,24 @@ padding_oracle.edict = { 500: 'connection', 404: 'mac', 403: 'pad', 200: 'OK'}
 
 
 def inject(cypher_text=r'20814804c1767293b99f1d9cab3bc3e7ac1e37bfb15599e5f40eef805488281d',
-            plain_text=r'Pay Bob 100$',
+            plain_text=r'        1   ',
+            desired_plain_text=r'        5   ',
             block_size=16,
-            desired_plain_text=r'Pay Bob 500$',
             mode='CBC'):
-    "Produce the cyphertext for the requested plain text message without know the key!"
+    '''Produce the cyphertext for the requested plain text message without know the key!
+
+    >>> m = 'Hello World.'
+    >>> D(k, inject(E(k, m), m, 'Hello Ralph.'))
+    'Hello Ralph.'
+    '''
     if not mode.lower().strip() == 'cbc':
         raise NotImplementedError('I only know how to *fix* CBC-authenticated messages.')
-    IV = cypher_text.decode('hex')[:block_size]
+    hex_cypher_text = cypher_text
+    IV = hex_cypher_text.decode('hex')[:block_size]
+    # add zero pad for any text (pad) that you don't want modified
+    plain_text += '\x00' * (block_size - len(plain_text))
+    desired_plain_text += '\x00' * (block_size - len(desired_plain_text))
     IV2 = strxor(strxor(IV, plain_text), desired_plain_text)
-    return IV2.encode('hex') + cypher_text[block_size*2:]
+    return IV2.encode('hex') + hex_cypher_text[len(IV2)*2:]
 
 
