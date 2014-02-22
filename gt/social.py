@@ -1,141 +1,235 @@
-from pug.nlp.util import unlistify
+"""Game Theory social welfare and social choice functions (SCWs and SCFs)
 
+Implements the following mechanisms:
+* Plurality (conventional voting)
+* Borda-Rule
+* Pairwise Elimination
+* Plurality with Elimination (similar to French presidential election)
+* Condorcet choice (not yet validated or tested)
+
+Agent preferences are specified as a list of lists.
+Agents are just given index numbers (row index in the list),
+But candidates are given whatever labels are listed in each row of the preferences argument.
+
+Arbitrary agent "influence" weights are allowed (for semidictatorship).
+Arbitrary candidate weights are allowed (advantage if weight > 1 or disadvantage if weight < 1)
+Arbitrary rank weights are allowed (for nonlinear Borda-Rule scoring "kernels")
+
+FIXME:
+- Many functions and have a tie_breaker argument that doesn't do anything. Use it or lose it!
+- Various TODOs sprinkled in code comments
+
+"""
+
+import warnings
 A, B, C, D = 'A', 'B', 'C', 'D'
+
+
 
 def tie_breaker_choice(names, method='name', preferences=None, votes=None):
     if method.lower().strip() == 'name':
         return sorted(names)[0]
 
 
-def plurality_choice(preferences, agent_weights=None, tie_breaker='name'):
+def plurality_choice(preferences, agent_weights=None, candidate_weights=None, tie_breaker='name'):
     """"Return the winner using the plurality voting method (most prefered by most agents)
 
     >>> plurality_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
-    'C'
+    ('C', 2)
     >>> plurality_choice([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
-    'A'
+    ('A', 400)
     >>> plurality_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
-    
+    ('A', 400)
     >>> plurality_choice([(A, B, D, C)] * 300 + [(D, C, B, A)] * 400 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+    ('D', 400)
     """
-    ranking, score = plurality_welfare(preferences, agent_weights, tie_breaker)
-    winners = [ranking[0]]
-    for c in enumerate(ranking[1:]):
-        if score[c] > score[winners[0]]:
-            raise RuntimeError('The plurality_welfare() function output an invalid ranking list or score dict. Candidate %s had a score of %s and rank %s which exceeds the 1st ranked candidate, %s, with a score of %s'
-                (c, score[c], ranking.index(c) + 1, winners[0], score[winners[0]]))
-        elif score[c] == score[winners[0]]:
-            winners += [c]
-        else:
-            break
-    return unlistify(winners)
+    #print candidate_weights
+    ranking, score = plurality_welfare(preferences, agent_weights=agent_weights, candidate_weights=candidate_weights, tie_breaker=tie_breaker)
+    #print ranking, score
+    # winners = [ranking[0]]
+    # for i, c in enumerate(ranking[1:]):
+    #     if c not in score or winners[0] not in score or score[c] > score[winners[0]]:
+    #         raise RuntimeError('The plurality_welfare() function output an invalid ranking list or score dict. Candidate %s had a score of %s and rank %s which exceeds the 1st ranked candidate, %s, with a score of %s'
+    #             (c, score[c], ranking.index(c) + 1, winners[0], score[winners[0]]))
+    #     elif score[c] == score[winners[0]]:
+    #         winners += [c]
+    #     else:
+    #         break
+    return ranking[0], score[ranking[0]]
 
 
-def plurality_welfare(preferences, agent_weights=None, tie_breaker='name'):
+def plurality_welfare(preferences, agent_weights=None, candidate_weights=None, tie_breaker='name'):
     """"Return the winner using the plurality voting method (most prefered by most agents)
 
     >>> plurality_welfare(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
-    (('C', 'A', 'B', 'D'), {'A': 1, 'B': 1, 'C': 2, 'D': 1})
-    >>> plurality_welfare([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
-    (('A', 'D', 'B', 'C'), {'A': 400, 'B': 200, 'C': 102, 'D': 300})
+    (('C', 'D', 'B', 'A'), {'A': 1, 'C': 2, 'B': 1, 'D': 1})
+    >>> plurality_welfare([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)[0]
+    ('A', 'D', 'B', 'C')
     >>> plurality_welfare(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
-     (('A', 'D', 'B', 'C'), {'A': 400, 'C': 102, 'B': 200, 'D': 300})
+    (('A', 'D', 'B', 'C'), {'A': 400, 'C': 102, 'B': 200, 'D': 300})
     >>> plurality_welfare([(A, B, D, C)] * 300 + [(D, C, B, A)] * 400 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
     (('D', 'A', 'B', 'C'), {'A': 300, 'C': 102, 'B': 200, 'D': 400})
     """
     N = get_ranking_len_from_preferences(preferences)
-    return borda(preferences, agent_weights, rank_weights=[1] + [0] * (N - 1))
+    rank_weights = [1] + [0] * (N - 1)
+    return borda(preferences, agent_weights=agent_weights, candidate_weights=candidate_weights, rank_weights=rank_weights)
 
 
-def plurality_choice_with_elimination(preferences, agent_weights=None, tie_breaker='name'):
+def plurality_choice_with_elimination(preferences, agent_weights=None, candidate_weights=None, tie_breaker='name'):
     """Return the winning candidate name and its score in a plurality with elimination social choice function 
     
     >>> plurality_choice_with_elimination(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
-    (('C', 'A', 'B', 'D'), {'A': 1, 'B': 1, 'C': 2, 'D': 1})
+    ('C', 3)
     >>> plurality_choice_with_elimination([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
-    'D', 502
+    ('D', 502)
+    >>> plurality_choice_with_elimination(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
+    ('D', 502)
     """
-    candidates = get_candidates_from_preferences(preferences)
-    while len(candidates>1):
-        ranking, scores = plurality_welfare(preferences, agent_weights=agent_weights, tie_breaker=tie_breaker)
+    while 1:
+        ranking, scores = plurality_welfare(preferences, agent_weights=agent_weights, candidate_weights=candidate_weights, tie_breaker=tie_breaker)
+        if len(ranking) <= 2:
+            break
         eliminated_candidate = ranking[-1]
         reduced_preferences = []
-        for agent, plist in preferences:
-            reduced_preferences += [(agent, [pref for pref in plist if pref != eliminated_candidate])]
+        for plist in preferences:
+            reduced_preferences += [tuple(pref for pref in plist if pref != eliminated_candidate)]
         preferences = reduced_preferences
     return ranking[0], scores[ranking[0]]
 
 
-def borda(preferences, agent_weights=None, rank_weights=None, candidate_weights=None):
+def borda(preferences, agent_weights=None, rank_weights=None, candidate_weights=None, tie_breaker='name'):
     """Calculate the rank, and scores of a Borda selection from ordered lists of preferences (first preferred over last).
 
-    >>> A, B, C, D = 'A', 'B', 'C', 'D'
-    >>> borda(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
-    'D'
+    >>> rank, score = borda(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
+    >>> print rank
+    ('D', 'A', 'B', 'C')
+    >>> print [score[candidate] for candidate in rank]
+    [9, 8, 7, 6]
+    >>> prefs = [(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2
+    >>> ranking, scores = borda(prefs)
+    >>> ranking
+    ('B', 'D', 'A', 'C')
+    >>> scores == {'A': 1402, 'B': 1800, 'C': 1106, 'D': 1704}
+    True
     """
+    # if candidate_weights:
+    #     raise NotImplementedError('borda rule SWF is not implemented for nonunity candidate_weights.')
     scores = {}
     N = get_ranking_len_from_preferences(preferences)
+    candidate_weights = candidate_weights or dict((candidate, 1) for candidate in get_candidates_from_preferences(preferences))
     rank_weights = rank_weights or list(range(N - 1, -1, -1))
     agent_weights = agent_weights or [1] * len(preferences)
     for agent, plist in enumerate(preferences):
         for rank, candidate in enumerate(plist):
-            scores[candidate] = scores.get(candidate, 0) + agent_weights[agent] * rank_weights[rank]
+            scores[candidate] = scores.get(candidate, 0) + candidate_weights[candidate] * agent_weights[agent] * rank_weights[rank]
     return tuple(c2 for(s2, c2) in sorted([(s1, c1) for c1, s1 in scores.items()], reverse=True)), scores
 
 
-def pairwise_elimination(preferences=None, candidates_sorted=None):
-    """Return the winnin in pairwise elimination with the agenda indicated by `candidates_sorted`
+def pairwise_elimination_choice(preferences, agenda=None, agent_weights=None, candidate_weights=None, tie_breaker='name'):
+    """Return the winning candidate name and its score in a plurality with elimination social choice function 
+    
+    # TODO: feature to specify agenda as a string indicating how to compute an agenda:
+            'name' or 'reverse name' of 'alpha' or 'reverse alpha' 
+            or an agent name (to optimize the agenda for their preferences)
+            'occurence in preferences' (the current default) or 'reverse occurence in preferences'
 
-    >>> A, B, C, D = 'A', 'B', 'C', 'D'
-    >>> pairwise_elimination(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
-    'C'
-    >>> pairwise_elimination(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
-    'A'
-    >>> pairwise_elimination([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
-    'D'
-
-    # TODO: call borda() or plurality_choice() within these loops to allow weights
+    >>> pairwise_elimination_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agenda=[A, B, C, D])
+    ('D', 3)
+    >>> pairwise_elimination_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agenda=[A, B, D, C])
+    ('D', 3)
+    >>> pairwise_elimination_choice([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2, agenda=[D, B, A, C])
+    ('C', 602)
+    >>> pairwise_elimination_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2), agenda=[D, B, A, C])
+    ('C', 602)
     """
-    reverse = None
-    if candidates_sorted in (None, True, False, 1, -1):
-        if candidates_sorted in (True, False, 1, -1):
-            reverse = candidates_sorted
-        candidates = get_candidates_from_preferences(preferences)
+    candidates = get_candidates_from_preferences(preferences)
+    if agenda:
+        _agenda = list(agenda)  # create a new list in case the user assigned it in the function call, it's being modified below!
     else:
-        candidates = candidates_sorted
+        _agenda = None
+    if _agenda is None:
+        _agenda = candidates
+        warnings.warn("You probably want to specify an agenda. Currently using a default agenda derived from candidate occurences in the preferences lists supplied: %s" % repr(_agenda))
+    if any(agenda_item not in candidates for agenda_item in _agenda):
+        raise ValueError("Your agenda, %r, contains candidate(s) (names, labels or objects) that are not in the preferences list provided.")
+    if len(_agenda) < len(candidates):
+        warnings.warn("Looks like you are missing some candidates from your agenda:\n%r" % _agenda)
+        for candidate in candidates:
+            if candidate not in _agenda:
+                _agenda += [candidate]
+        warnings.warn("After appending the missing candidates, the agenda being used is:\n%r" % _agenda)
 
-    if reverse is not None:
-        if reverse in (-1, False):
-            reverse = True
-        else:
-            reverse = False
-        candidates = sorted(candidates, reverse=reverse)
+    winner = _agenda[0]
+    N = len(candidates)
+    for round_num in range(N - 1):
+        candidate_pair = winner, _agenda[round_num + 1]
+        #print candidate_pair
+        #candidate_weights = dict((candidate, 1) if candidate in candidate_pair else (candidate, 0) for candidate in candidates)
+        if candidate_weights:
+            pair_weights = dict((candidate, weight) for (candidate, weight) in candidate_weights.iteritems() if candidate in candidate_pair)
+        pair_preferences, pair_weights = [], []
+        for pref in preferences:
+            pair_preferences += [[candidate for candidate in pref if candidate in candidate_pair]]
+        #print pair_preferences
+        ranking, scores = borda(pair_preferences, agent_weights=agent_weights, candidate_weights=pair_weights, tie_breaker=tie_breaker) 
+        #print ranking, scores
+        winner, score = ranking[0], scores[ranking[0]]
+        #print winner, score
+    return winner, score
 
-    winner = None
+# def pairwise_elimination(preferences=None, candidates_sorted=None):
+#     """Return the winnin in pairwise elimination with the agenda indicated by `candidates_sorted`
 
-    for i, first_candidate in enumerate(candidates[:-1]):
-        votes = 0
-        for plist in preferences:
-            for preferred_candidate in plist:
-                if preferred_candidate in (first_candidate, candidates[i + 1]):
-                    if preferred_candidate == first_candidate:
-                        votes += 1
-                    else:
-                        votes -= 1
-                    break
-        if votes > 0:
-            winner = first_candidate
-        elif votes < 0:
-            winner = candidates[i + 1]
-        else:
-            winner = first_candidate, candidates[i - 1]
+#     >>> A, B, C, D = 'A', 'B', 'C', 'D'
+#     >>> pairwise_elimination(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
+#     'C'
+#     >>> pairwise_elimination(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
+#     'A'
+#     >>> pairwise_elimination([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+#     'D'
 
-    return winner
+#     # TODO: call borda() or plurality_choice() within these loops to allow weights
+#     """
+#     reverse = None
+#     if candidates_sorted in (None, True, False, 1, -1):
+#         if candidates_sorted in (True, False, 1, -1):
+#             reverse = candidates_sorted
+#         candidates = get_candidates_from_preferences(preferences)
+#     else:
+#         candidates = candidates_sorted
+
+#     if reverse is not None:
+#         if reverse in (-1, False):
+#             reverse = True
+#         else:
+#             reverse = False
+#         candidates = sorted(candidates, reverse=reverse)
+
+#     winner = None
+
+#     for i, first_candidate in enumerate(candidates[:-1]):
+#         votes = 0
+#         for plist in preferences:
+#             for preferred_candidate in plist:
+#                 if preferred_candidate in (first_candidate, candidates[i + 1]):
+#                     if preferred_candidate == first_candidate:
+#                         votes += 1
+#                     else:
+#                         votes -= 1
+#                     break
+#         if votes > 0:
+#             winner = first_candidate
+#         elif votes < 0:
+#             winner = candidates[i + 1]
+#         else:
+#             winner = first_candidate, candidates[i - 1]
+
+#     return winner
 
 
 def get_candidates_from_preferences(preferences):
     candidates = []
-    for voter, plist in enumerate(preferences[:-1]):
+    for agent, plist in enumerate(preferences[:-1]):
         for order, candidate in enumerate(plist):
             if candidate not in candidates:
                 candidates += [candidate]
@@ -154,7 +248,6 @@ def condorcet_winner(preferences=None):
 
     >>> A, B, C, D = 'A', 'B', 'C', 'D'
     >>> condorcet_winner(((B, C, A, D), (B, D, C, A), (D, C, A, B), (A, D, B, C), (A, D, C, B)))
-    None
     >>> condorcet_winner(((A, B, C), (B, C, A), (C, B, A)))
     'B'
     """
