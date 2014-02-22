@@ -7,5 +7,4 @@ wsgiref==0.1.2
 #sympy
 scrapy
 python-dateutil
-
-
+-e git+git@github.com:hobsonlane/pug.git@7d3e2b21351e00fe358c7f7d210c8f5508cb7332#egg=pug-master

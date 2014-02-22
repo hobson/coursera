@@ -30,11 +30,12 @@ def plurality_choice(preferences, agent_weights=None, tie_breaker='name'):
             break
     return unlistify(winners)
 
+
 def plurality_welfare(preferences, agent_weights=None, tie_breaker='name'):
     """"Return the winner using the plurality voting method (most prefered by most agents)
 
     >>> plurality_welfare(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
-    'C'
+    (('C', 'A', 'B', 'D'), {'A': 1, 'B': 1, 'C': 2, 'D': 1})
     >>> plurality_welfare([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
     (('A', 'D', 'B', 'C'), {'A': 400, 'B': 200, 'C': 102, 'D': 300})
     >>> plurality_welfare(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agent_weights=(400, 300, 200, 100, 2))
@@ -45,6 +46,24 @@ def plurality_welfare(preferences, agent_weights=None, tie_breaker='name'):
     N = get_ranking_len_from_preferences(preferences)
     return borda(preferences, agent_weights, rank_weights=[1] + [0] * (N - 1))
 
+
+def plurality_choice_with_elimination(preferences, agent_weights=None, tie_breaker='name'):
+    """Return the winning candidate name and its score in a plurality with elimination social choice function 
+    
+    >>> plurality_choice_with_elimination(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)))
+    (('C', 'A', 'B', 'D'), {'A': 1, 'B': 1, 'C': 2, 'D': 1})
+    >>> plurality_choice_with_elimination([(A, B, D, C)] * 400 + [(D, C, B, A)] * 300 + [(B, D, C, A)] * 200 + [(C, A, B, D)] * 100 + [(C, D, A, B)] * 2)
+    'D', 502
+    """
+    candidates = get_candidates_from_preferences(preferences)
+    while len(candidates>1):
+        ranking, scores = plurality_welfare(preferences, agent_weights=agent_weights, tie_breaker=tie_breaker)
+        eliminated_candidate = ranking[-1]
+        reduced_preferences = []
+        for agent, plist in preferences:
+            reduced_preferences += [(agent, [pref for pref in plist if pref != eliminated_candidate])]
+        preferences = reduced_preferences
+    return ranking[0], scores[ranking[0]]
 
 
 def borda(preferences, agent_weights=None, rank_weights=None, candidate_weights=None):
