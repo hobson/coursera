@@ -133,6 +133,11 @@ def pairwise_elimination_choice(preferences, agenda=None, agent_weights=None, ca
             or an agent name (to optimize the agenda for their preferences)
             'occurence in preferences' (the current default) or 'reverse occurence in preferences'
 
+    >>> agent_weights = (400, 300, 200, 100, 2)
+    >>> prefs = ((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B))
+    >>> pairwise_elimination_choice(prefs, agent_weights=agent_weights)
+    <string>:152: UserWarning: You probably want to specify an agenda. Currently using a default agenda derived from candidate occurences in the preferences lists supplied: ['A', 'B', 'D', 'C']
+    ('D', 900)
     >>> pairwise_elimination_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agenda=[A, B, C, D])
     ('D', 3)
     >>> pairwise_elimination_choice(((A, B, D, C), (D, C, B, A), (B, D, C, A), (C, A, B, D), (C, D, A, B)), agenda=[A, B, D, C])
