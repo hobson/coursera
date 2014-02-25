@@ -28,6 +28,7 @@ def compute_lookup(h, base=None, B=None, p=None):
     >>> table = compute_lookup(h=53, base=63, B=2**2, p=101)
     >>> table == {81: 1, 59: 2, 53: 0, 39: 4, 33: 3}
     True
+    >>> table = compute_lookup(h=(456 ** 789) % 1123, base=456, B=2**10, m=1123)
     """
     g = base
     x1hash = {h: 0}
@@ -37,13 +38,12 @@ def compute_lookup(h, base=None, B=None, p=None):
     k = h
     for x1 in range(1, B+1):
         k = (k * invg) % p
-        x1hash[int(k)] = int(x1)
+        x1hash[int(k)] = int(x1) % p
         #print x1, k
         if not x1 % 10000:
             #print i, x1, k
             # print len(x1hash)
             pbar.update(x1)
-        x1hash[str(int(k))] = str(int(x1))
     pbar.finish()
     #print x1hash
     try:
