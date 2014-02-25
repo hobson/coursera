@@ -57,8 +57,6 @@ def discrete_log(h, base=None, B=None, m=None, lookup=None):
     9
     >>> discrete_log(h=(456 ** 789) % 1123, base=456, B=2**10, m=1123)
     789
-    >>> discrete_log(h=(456 ** 789) % 1123, base=456, B=2**15, m=1123)
-    789
     """
     g = base
     if not lookup:
