@@ -28,7 +28,6 @@ def compute_lookup(h, base=None, B=None, p=None):
     >>> table = compute_lookup(h=53, base=63, B=2**2, p=101)
     >>> table == {81: 1, 59: 2, 53: 0, 39: 4, 33: 3}
     True
-    >>> table = compute_lookup(h=(456 ** 789) % 1123, base=456, B=2**10, m=1123)
     """
     g = base
     x1hash = {h: 0}
@@ -38,20 +37,17 @@ def compute_lookup(h, base=None, B=None, p=None):
     k = h
     for x1 in range(1, B+1):
         k = (k * invg) % p
-        x1hash[int(k)] = int(x1) % p
+        x1hash[int(k)] = x1
         #print x1, k
         if not x1 % 10000:
             #print i, x1, k
             # print len(x1hash)
             pbar.update(x1)
+        x1hash[int(k)] = int(x1)
     pbar.finish()
     #print x1hash
-    try:
-        with open('x1hash.json', 'w') as fp:
-            json.dump(x1hash, fp, indent=2)
-    except:
-        # fp.write(repr(x1hash))
-        pass
+    with open('x1hash.json', 'w') as fp:
+        json.dump(x1hash, fp, indent=2)
     return x1hash
 
 
@@ -61,22 +57,19 @@ def discrete_log(h, base=None, B=None, m=None, lookup=None):
     9
     >>> discrete_log(h=(456 ** 789) % 1123, base=456, B=2**10, m=1123)
     789
+    >>> discrete_log(h=(456 ** 789) % 1123, base=456, B=2**15, m=1123)
+    789
     """
-    if B > m:
-        raise ValueError("Your halfway estimate is further (greater) than the whole way (the prime base of Z_base)!")
     g = base
     if not lookup:
         lookup = compute_lookup(h=h, base=g, B=B, p=m)
     gb = (g ** B) % m
     x1 = 0
-    x0 = 0
-    k = gb
-    for x0 in range(1, B+2):
-        if int(k) in lookup:
-            x1 = int(lookup[int(k)])
-            break
+    for x0 in range(B+1):
         x0 = mpz(x0)
-        k = (k * gb) % m
+        if (gb ** x0) % m in lookup:
+            x1 = lookup[((g ** B) ** x0) % m]
+            break
     return int(x0 * B + x1)
 
 
