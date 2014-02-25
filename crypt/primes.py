@@ -25,25 +25,26 @@ from progressbar import Bar, ETA, Percentage, ProgressBar, ReverseBar, RotatingM
 
 def compute_lookup(h, base=None, B=None, p=None):
     """
+     >>table = compute_lookup(h=(456 ** 789) % 1123, base=456, B=2**10, m=1123)
     >>> table = compute_lookup(h=53, base=63, B=2**2, p=101)
     >>> table == {81: 1, 59: 2, 53: 0, 39: 4, 33: 3}
     True
-    >>> table = compute_lookup(h=(456 ** 789) % 1123, base=456, B=2**10, m=1123)
     """
     g = base
     x1hash = {h: 0}
     widgets = [Bar('*'), ' ', Percentage(), ' ',  Timer(), ' ',  ETA()]
-    pbar = ProgressBar(widgets=widgets, maxval=B).start()
+    pbar = ProgressBar(widgets=widgets, maxval=B+1).start()
     invg = discrete_inverse(g, base=p)
     k = h
     for x1 in range(1, B+1):
         k = (k * invg) % p
-        x1hash[int(k)] = int(x1) % p
+        #x1hash[int(k)] = int(x1) % p
         #print x1, k
         if not x1 % 10000:
             #print i, x1, k
             # print len(x1hash)
-            pbar.update(x1)
+            pbar.update(int(x1))
+        x1hash[int(k)] = int(x1)
     pbar.finish()
     #print x1hash
     try:
@@ -61,22 +62,30 @@ def discrete_log(h, base=None, B=None, m=None, lookup=None):
     9
     >>> discrete_log(h=(456 ** 789) % 1123, base=456, B=2**10, m=1123)
     789
+    >>> discrete_log(h=(456 ** 400) % 1123, base=456, B=2**10, m=1123)
+    400
     """
     if B > m:
         raise ValueError("Your halfway estimate is further (greater) than the whole way (the prime base of Z_base)!")
     g = base
     if not lookup:
         lookup = compute_lookup(h=h, base=g, B=B, p=m)
-    gb = (g ** B) % m
+    gb = mpz(g) ** mpz(B) % m
     x1 = 0
-    x0 = 0
-    k = gb
-    for x0 in range(1, B+2):
-        if int(k) in lookup:
-            x1 = int(lookup[int(k)])
-            break
+    widgets = [Bar('*'), ' ', Percentage(), ' ',  Timer(), ' ',  ETA()]
+    pbar = ProgressBar(widgets=widgets, maxval=B+1).start()
+    k = mpz(gb % m)
+    for x0 in range(1,B+1):
         x0 = mpz(x0)
-        k = (k * gb) % m
+        k = int((gb ** x0) % m)
+        if k in lookup:
+            x1 = lookup[k]
+            break
+        if not x0 % 10000:
+            pbar.update(int(x0))
+        # x0 = mpz(x0)
+        # k = (k * gb) % m
+    print x0, x1
     return int(x0 * B + x1)
 
 
