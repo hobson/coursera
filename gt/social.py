@@ -182,6 +182,28 @@ def pairwise_elimination_choice(preferences, agenda=None, agent_weights=None, ca
         #print winner, score
     return winner, score
 
+def pairwise_elimination_welfare(preferences, agenda=None, agent_weights=None, candidate_weights=None, tie_breaker='name'):
+    prefs = [list(p) for p in preferences]
+    _agenda = list(agenda)
+    ranking = []
+    scores = []
+    while all(len(p)>1 for p in prefs):
+        #print _agenda
+        #print prefs
+        winner, score = pairwise_elimination_choice(list(prefs), agenda=_agenda, agent_weights=agent_weights, candidate_weights=candidate_weights, tie_breaker=tie_breaker)
+        ranking += [winner]
+        scores += [score]
+        for i, p in enumerate(prefs):
+            del p[p.index(winner)]
+            prefs[i] = list(p)
+        _agenda = list(a for a in _agenda if a != winner)
+    winner, score = plurality_choice(prefs)
+    ranking += [winner]
+    scores += [score]
+   
+    return ranking, scores
+
+
 # def pairwise_elimination(preferences=None, candidates_sorted=None):
 #     """Return the winnin in pairwise elimination with the agenda indicated by `candidates_sorted`
 
