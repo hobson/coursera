@@ -32,3 +32,4 @@ tornado==3.2
 w3lib==1.5
 wsgiref==0.1.2
 zope.interface==4.1.0
+pylint
