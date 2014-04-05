@@ -97,7 +97,8 @@ def is_valid(argument):
 
 tautologies = { 
     r'∼∼A ≡ A': 'double negation',
-    r'(A∨ ∼A) BOE ∼(A  ∼A)': 'excluded middle',
+    r'(A∨ ∼A)': 'excluded middle 1',
+    r'∼(A  ∼A)': 'excluded middle 2',
     r'((A  B)  C) ≡ (A  (B  C))': 'associativity of &',
     r'((A∨B)∨C) ≡ (A∨(B∨C))': 'associativity of ∨',
     r'(A  B) ≡ (B  A)': 'commutativity of &',
