@@ -24,7 +24,7 @@ def make_expr(expr):
     '''
     #expr = unicode(expr)
     #mathjax_trans = {u'∼': 'not ', u'~': 'not ', u'∨': '|'}
-    mathjax_symbols = [('∼', '~'), ('∨', '|'), ('⊃', '>>'), (',', '&'), ('≡', '='), ('', '&')]  # , u'\u223c': '~', u'\u2228': '|'}
+    mathjax_symbols = [('∼', '~'), ('∨', '|'), ('⊃', '>>'), (',', '&'), ('≡', '='), ('', '&'), ('\\+', '~')]  # , u'\u223c': '~', u'\u2228': '|'}
     numerical_logic = []  # {'~': '~+', '&': '&+', '|': '|+'}  # , u'\u223c': '~', u'\u2228': '|'}
     for math_chr, sym_chr in mathjax_symbols:
         expr = expr.replace(math_chr, sym_chr)
@@ -97,31 +97,31 @@ def is_valid(argument):
 
 tautologies = { 
     r'∼∼A ≡ A': 'double negation',
-    r'(A∨ ∼A)': 'excluded middle 1',
-    r'∼(A  ∼A)': 'excluded middle 2',
-    r'((A  B)  C) ≡ (A  (B  C))': 'associativity of &',
+    r'(A∨ ∼A)': 'excluded middle of ∨',
+    r'∼(A & ∼A)': 'excluded middle of &',
+    r'((A & B) & C) ≡ (A & (B & C))': 'associativity of &',
     r'((A∨B)∨C) ≡ (A∨(B∨C))': 'associativity of ∨',
-    r'(A  B) ≡ (B  A)': 'commutativity of &',
+    r'(A & B) ≡ (B & A)': 'commutativity of &',
     r'(A∨B) ≡ (B∨A)': 'commutativity of ∨',
-    r'(A  (B∨C)) ≡ ((A  B)∨(A  C))': 'distribution of & over ∨',
-    r'(A∨(B  C)) ≡ ((A∨B)  (A∨C))': 'distribution of ∨ over &',
-    r'∼(A  B) ≡ (∼A∨ ∼B)': "De Morgan's rule for ~ of & to ∨",
-    r'∼(A∨B) ≡ (∼A  ∼B)': "De Morgan's rule for ~ of ∨ to &",
-    r'∼(∼A  ∼B) ≡ (A∨B)': "De Morgan's rule for ~ of & of ~ to ∨",
-    r'∼(∼A∨ ∼B) ≡ (A  B)': "De Morgan's rule for ~ of ∨ of ~ to &",
+    r'(A & (B∨C)) ≡ ((A & B)∨(A & C))': 'distribution of & over ∨',
+    r'(A∨(B & C)) ≡ ((A∨B) & (A∨C))': 'distribution of ∨ over &',
+    r'∼(A & B) ≡ (∼A∨ ∼B)': "De Morgan's rule for ~ of & to ∨",
+    r'∼(A∨B) ≡ (∼A & ∼B)': "De Morgan's rule for ~ of ∨ to &",
+    r'∼(∼A & ∼B) ≡ (A∨B)': "De Morgan's rule for ~ of & of ~ to ∨",
+    r'∼(∼A∨ ∼B) ≡ (A & B)': "De Morgan's rule for ~ of ∨ of ~ to &",
     r'(A ⊃ B) ≡ (∼A∨B)': 'material implication',
-    r'∼(A ⊃ B) ≡ (A  ∼B)': 'negated conditional',
-    r'(A  B) ⊃ A': 'conditional for &, 1st conjunct',
-    r'(A  B) ⊃ B': 'conditional for &, 2nd conjunct',
+    r'∼(A ⊃ B) ≡ (A & ∼B)': 'negated conditional',
+    r'(A & B) ⊃ A': 'conditional for &, 1st conjunct',
+    r'(A & B) ⊃ B': 'conditional for &, 2nd conjunct',
     r'A ⊃ (A∨B)':  'conditional for ∨, 1st disjunct',
     r'B ⊃ (A∨B)': 'conditional for ∨, 2nd disjunct',
     r'A ⊃ (B ⊃ A)': 'weaking',
-    r'(A ⊃ (B ⊃ C)) ⊃ ((A ⊃ B) ⊃ (A ⊃ C))': 'distribution for conditional',
+    r'(A ⊃ (B ⊃ C)) ⊃ ((A ⊃ B) ⊃ (A ⊃ C))': 'conditional distribution',
     r'(∼A ⊃ ∼B) ⊃ (B ⊃ A)': 'contraposition 1',
     r'(A ⊃ B) ⊃ (∼B ⊃ ∼A)': 'contraposition 2',
     r'((A ⊃ B) ⊃ A) ⊃ A': "Pierce's Law",
-    r'(A  (A ⊃ B)) ⊃ B': 'Modus ponens conditional',
-    r'((A  B) ⊃ C) ≡ (A ⊃ (B ⊃ C))': "Curry's formula",
-    r'((A∨B)  ∼A) ⊃ B': 'excluding disjuncts, 1st disjunct',
-    r'((A∨B)  ∼B) ⊃ A': 'excluding disjuncts, 2nd disjunct',
+    r'(A & (A ⊃ B)) ⊃ B': 'Modus ponens conditional',
+    r'((A & B) ⊃ C) ≡ (A ⊃ (B ⊃ C))': "Curry's formula",
+    r'((A∨B) & ∼A) ⊃ B': 'excluding disjuncts, 1st disjunct',
+    r'((A∨B) & ∼B) ⊃ A': 'excluding disjuncts, 2nd disjunct',
 }
