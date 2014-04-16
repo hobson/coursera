@@ -6,6 +6,11 @@ GDL is a language defined at Berkeley for their GGP competitions
 import re
 
 class gdl(object):
+    '''
+    >>> parse('start m23 white description 10 10')
+
+    >>>
+    '''
 
     def __init__(self, start=None, stop=None, play=None, abort=None):
         self.context = {
@@ -29,6 +34,13 @@ class gdl(object):
     def play(game_id, moves):
         pass
 
+    def parse_line(self, s):
+        words = s.split()
+        expr = words[0] + '(' + ','.join(words[1:]) + ')'
+        return expr
+    
+    def parse(self, s):
+        return [self.parse_line(line) for line in s.split('\n')]
 
 class gdl_re(object):
     NIL = re.compile(r'\bnil\b')
