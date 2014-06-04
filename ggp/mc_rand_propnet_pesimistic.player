@@ -1,0 +1,1 @@
+{"heuristicOpponentMobility":1,"cacheStateMachine":true,"mcDecayRate":1,"heuristicMobility":1,"stateMachine":"PropNet Interpreter","heuristicFocus":1,"heuristicOpponentFocus":1,"name":"Player #37690","useAlphaBeta":false,"strategy":"Monte Carlo Tree Search","maxPlys":1,"mctsExploreType":"Pessimistic","mctsFactorC":10,"metagameStrategy":"Random Exploration"}
