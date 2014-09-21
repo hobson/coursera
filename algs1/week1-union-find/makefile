@@ -13,7 +13,8 @@ CLASSES = \
 	WeightedQuickUnionUF.java \
 	WeightedClient.java \
 	CompressedQuickUnionUF.java \
-	CompressedClient.java
+	CompressedClient.java \
+	Percolation.java
 
 default: classes
 

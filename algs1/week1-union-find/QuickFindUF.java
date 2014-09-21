@@ -3,6 +3,7 @@
 //    initialize T(N), union=T(N), find=T(1) 
 //    So N union operations for N nodes (an average connectivity of 1) costs N^2 array accesses
 public class QuickFindUF {
+    protected String __class__ = "QuickFindUF";
 	protected int[] id;
 
     // public QuickFindUF() {
@@ -35,7 +36,7 @@ public class QuickFindUF {
     } // union(p,q)
 
     public String str() {
-        String s = new String();
+        String s = new String(__class__ + '\n');
         for (int i=0; i<id.length-1; i++) 
             s += i + " ";
         s += id.length-1;

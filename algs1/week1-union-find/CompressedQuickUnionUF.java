@@ -4,6 +4,7 @@ public class CompressedQuickUnionUF extends WeightedQuickUnionUF {
 
     public CompressedQuickUnionUF(int N) {
         super(N);
+        __class__ = "CompressedQuickUnionUF";
     }
 
     // follow parent pointers until you find the base

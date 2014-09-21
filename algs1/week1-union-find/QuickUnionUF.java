@@ -4,6 +4,7 @@ public class QuickUnionUF extends QuickFindUF {
 
     public QuickUnionUF(int N) {
         super(N);
+        __class__ = "QuickUnionUF";
     }
 
     // follow parent pointers until you find the root

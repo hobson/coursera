@@ -5,6 +5,7 @@ public class WeightedQuickUnionUF extends QuickUnionUF {
 
     public WeightedQuickUnionUF(int N) {
         super(N);
+        __class__ = "WeightedQuickUnionUF";
         depth = new int[N];
         for (int i = 0; i < N; i++) {
             depth[i] = 1;
@@ -20,15 +21,13 @@ public class WeightedQuickUnionUF extends QuickUnionUF {
     public void union(int dest, int src) {
         int i = root(dest);
         int j = root(src);
-        if (i == j)
-            return;
+        if (i == j) return;
         if (depth[i] < depth[j]) {  // null pointer exception
             id[i] = j;
             depth[j] += depth[i]; }
         else {
             id[j] = i;
             depth[i] += depth[j]; }
-        id[i] = j;
     } // union(dest, src)
 
     public String str() {
