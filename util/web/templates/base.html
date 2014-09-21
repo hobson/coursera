@@ -1,0 +1,89 @@
+{% load staticfiles i18n %}
+{% load bootstrap_toolkit %}
+{% load d3 %}
+{% load nvd3_tags %}
+{% load url from future %}
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js lt-ie9 lt-ie8 lt-ie7" lang="{{ LANGUAGE_CODE }}"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js lt-ie9 lt-ie8" lang="{{ LANGUAGE_CODE }}"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js lt-ie9" lang="{{ LANGUAGE_CODE }}"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="{{ LANGUAGE_CODE }}"> <!--<![endif]-->
+    <head>
+        {% block meta %}
+            <meta charset="utf-8">
+            <meta name="description" content="A webapp for visualizing unstructured data.">
+            <meta name="author" content="Hobson Lane">
+        {% endblock %}
+        <title>{% block title_base %}{% if SITE_NAME %}{{ SITE_NAME }} | {% endif %}{% block title %}{% endblock %}{% endblock %}</title>
+        {% block style_base %}
+            {% bootstrap_stylesheet_tag %}
+            {% bootstrap_stylesheet_tag "responsive" %}
+            <style type="text/css">
+                body {
+                    padding-top: 60px;
+                }
+            </style>
+            <!--[if lt IE 9]>
+            <script src="//html5shim.googlecode.com/svn/trunk/html5.js"></script>
+            <![endif]-->
+            {% block extra_style %}{% endblock %}
+        {% endblock %}
+
+        {% block script_head %}
+            <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
+            {% bootstrap_javascript_tag %}
+        {% endblock %}
+
+        {% block viewport %}
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        {% endblock %}
+        
+        {% block extra_head_base %}
+            {% block extra_head %}{% endblock %}
+        {% endblock %}
+    </head>
+
+    <body class="{% block body_class %}{% endblock %}" id="{% block body_id %}{% endblock %}">
+        <div class="{% block wrapper_class %}body-wrapper{% endblock %}">
+            {% block topbar_base %}
+                <div class="navbar navbar-default {% block navbar_class %}navbar-fixed-top{% endblock %}">
+                    {% block topbar %}
+                        {% include "web/navbar.html" %}
+                    {% endblock %}
+                </div> <!-- navbar -->
+            {% endblock %}
+
+            <div class="container">
+                <div class="messages">
+                    {% bootstrap_messages %}
+                </div>
+                <div class="content">
+                    {% block content %}Nothing to see here (at web/templates/base.html)... Keep moving right along.{% endblock %}
+                </div>
+                <div class="extra-content">
+                    {% block extra_content %}{% endblock %}
+                </div>
+                <p><hr></p>
+                <div class="footer">
+                    {% block footer %}
+                        <footer class="row">
+                            <div class="span6">
+                                <p>Contributed to the <a href="http://totalgood.com/wiki">Total Good</a></p>
+                            </div>
+                            <div class="span6" style="text-align:right">
+                                <p>&copy; <a href="http://totalgood.com/">Total Good</a> 2013, <a href='{% static "web/LICENSE" %}'>Open Source!</a>
+                                </p>
+                            </div>
+                        </footer>
+                    {% endblock %}
+                </div> <!-- footer -->
+                {% block script_footer %}{% endblock %}
+            </div> <!-- container -->
+        </div> <!-- wrapper_class -->
+    </body>
+</html>
+
+
+
+        
+

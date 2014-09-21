@@ -1,0 +1,1 @@
+{"heuristicOpponentMobility":2,"cacheStateMachine":false,"mcDecayRate":0,"heuristicMobility":4,"stateMachine":"Prover","heuristicFocus":3,"heuristicOpponentFocus":5,"name":"op1","useAlphaBeta":true,"strategy":"Legal","maxPlys":2,"mctsExploreType":"Optimistic","mctsFactorC":10,"metagameStrategy":"None"}
