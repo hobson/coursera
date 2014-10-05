@@ -11,7 +11,7 @@ class QuickUnionClient extends QuickFindClient {
     public static void main(String[] args) {
         N = StdIn.readInt();
         StdOut.println("Initializing an array of " + N + " IDs (nodes).");
-        QuickUnionUF uf = new QuickUnionUF(N);
+        QuickUnionFind uf = new QuickUnionFind(N);
         read_stdin(uf);
     } 
 } // class UnionFindApp

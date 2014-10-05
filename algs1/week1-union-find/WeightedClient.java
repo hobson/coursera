@@ -12,7 +12,7 @@ class WeightedClient extends QuickFindClient {
     public static void main(String[] args) {
         N = StdIn.readInt();
         StdOut.println("Initializing an array of " + N + " IDs (nodes).");
-        WeightedQuickUnionUF uf = new WeightedQuickUnionUF(N);
+        WeightedQuickUnionFind uf = new WeightedQuickUnionFind(N);
         read_stdin(uf);
     } 
 }

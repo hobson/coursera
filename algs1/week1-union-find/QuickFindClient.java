@@ -9,7 +9,7 @@
 class QuickFindClient {
     public static int N = 100;
 
-    public static void read_stdin(QuickFindUF uf) {
+    public static void read_stdin(QuickFindUnion uf) {
         StdOut.println(uf.str());
         while (!StdIn.isEmpty()) {
             int p = StdIn.readInt();
@@ -27,7 +27,7 @@ class QuickFindClient {
     public static void main(String[] args) {
         N = StdIn.readInt();
         StdOut.println("Initializing an array of " + N + " IDs (nodes).");
-        QuickFindUF uf = new QuickFindUF(N);
+        QuickFindUnion uf = new QuickFindUnion(N);
         read_stdin(uf);
     } 
 } // class UnionFindApp

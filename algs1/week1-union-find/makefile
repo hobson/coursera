@@ -6,15 +6,17 @@ JC = javac
 
 CLASSES = \
 	DynamicClient.java \
-	QuickFindUF.java \
+	QuickFindUnion.java \
 	QuickFindClient.java \
-	QuickUnionUF.java \
+	QuickUnionFind.java \
 	QuickUnionClient.java \
-	WeightedQuickUnionUF.java \
+	WeightedQuickUnionFind.java \
 	WeightedClient.java \
-	CompressedQuickUnionUF.java \
+	CompressedQuickUnionFind.java \
 	CompressedClient.java \
-	Percolation.java
+	Percolation.java \
+	PercolationStats.java \
+	PercolationTest.java
 
 default: classes
 

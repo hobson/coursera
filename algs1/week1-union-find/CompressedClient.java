@@ -11,7 +11,7 @@ class CompressedClient extends QuickFindClient {
     public static void main(String[] args) {
         N = StdIn.readInt();
         StdOut.println("Initializing an array of " + N + " IDs (nodes).");
-        CompressedQuickUnionUF uf = new CompressedQuickUnionUF(N);
+        CompressedQuickUnionFind uf = new CompressedQuickUnionFind(N);
         read_stdin(uf);
     } 
 }

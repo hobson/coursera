@@ -1,10 +1,10 @@
 // fast Union using the lazy approach (but slow find)
 // initialize=T(N), union=T(N) (because have to find roots), find=O(N) (worst case for a really tall tree)
-public class QuickUnionUF extends QuickFindUF {
+public class QuickUnionFind extends QuickFindUnion {
 
-    public QuickUnionUF(int N) {
+    public QuickUnionFind(int N) {
         super(N);
-        __class__ = "QuickUnionUF";
+        __class__ = "QuickUnionFind";
     }
 
     // follow parent pointers until you find the root

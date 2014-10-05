@@ -2,15 +2,15 @@
 // Slow Dynamic Connectivity `union`, but fast `find`:
 //    initialize T(N), union=T(N), find=T(1) 
 //    So N union operations for N nodes (an average connectivity of 1) costs N^2 array accesses
-public class QuickFindUF {
-    protected String __class__ = "QuickFindUF";
+public class QuickFindUnion {
+    protected String __class__ = "QuickFindUnion";
 	protected int[] id;
 
     // public QuickFindUF() {
     //     this(100);
     // }
 
-    public QuickFindUF(int N) {
+    public QuickFindUnion(int N) {
         // must know the size of the array/network before initializing it
         id = new int[N];
         // initialize the ID of all elements to it's index number

@@ -1,19 +1,15 @@
 // fast Union using the lazy approach (but slow find)
 // initialize=T(N), union=T(lg(N)), find=T(lg(N)) (because trees are very flat)
-public class CompressedQuickUnionUF extends WeightedQuickUnionUF {
+public class WeightedQuickUnionFind extends QuickUnionFind {
+    protected int[] depth;
 
-    public CompressedQuickUnionUF(int N) {
+    public WeightedQuickUnionFind(int N) {
         super(N);
-        __class__ = "CompressedQuickUnionUF";
-    }
-
-    // follow parent pointers until you find the base
-    protected int root(int i) {
-        while (i != id[i]) {
-            id[i] = id[id[i]]; // while you're here take the parent's ID!
-            i = id[i]; // why do this extra lookup/assignment?
+        __class__ = "WeightedQuickUnionFind";
+        depth = new int[N];
+        for (int i = 0; i < N; i++) {
+            depth[i] = 1;
         }
-        return i; // why not just return id[i]? because one extra array lookup when i == id[i]
     }
 
     // now only need to check to see if they have the same tree root/base
@@ -25,15 +21,22 @@ public class CompressedQuickUnionUF extends WeightedQuickUnionUF {
     public void union(int dest, int src) {
         int i = root(dest);
         int j = root(src);
-        if (i == j)
-            return;
-        if (depth[i] < depth[j]) {
+        if (i == j) return;
+        if (depth[i] < depth[j]) {  // null pointer exception
             id[i] = j;
             depth[j] += depth[i]; }
         else {
             id[j] = i;
             depth[i] += depth[j]; }
-        id[i] = j;
     } // union(dest, src)
 
+    public String str() {
+        String s = super.str();
+        s += '\n';
+        for (int i=0; i<id.length-1; i++) {
+            s += depth[i] + " ";
+        } // for i in range(N)
+        s += depth[id.length-1];
+        return s;
+    } // str()
 } // QuickUnionUF
