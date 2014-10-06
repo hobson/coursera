@@ -1,2 +1,6 @@
 *.pyc
 nlp/wikiscrapy/*.json
+invest1/QSTK*
+*.tar.gz
+*.pdf
+
