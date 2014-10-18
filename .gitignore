@@ -3,4 +3,5 @@ nlp/wikiscrapy/*.json
 invest1/QSTK*
 *.tar.gz
 *.pdf
-
+invest1/data/*
+invest1/reports/*
