@@ -1,7 +1,8 @@
 '''Finds events in time-series data and plots statistics about following and preceding events'''
+from __future__ import unicode_literal
 
 
-import math
+# import math
 import copy
 import datetime as dt
 
@@ -132,6 +133,41 @@ def compare(symbol_sets=None,
                              )]
     return event_profiles
 
+def events_to_orders(events, sell_delay=5, sep=','):
+    """Generate CSV orders based on events indicated in a DataFrame
+
+    Arguments:
+      events (pandas.DataFrame): Table of NaNs or 1's, one column for each symbol.
+        1 indicates a BUY event. -1 a SELL event. nan or 0 is a nonevent.
+      sell_delay (float): Number of days to wait before selling back the shares bought
+      sep (str or None): if sep is None, orders will be returns as tuples of `int`s, `float`s, and `str`s
+        otherwise the separator will be used to join the order parameters into the yielded str
+
+    Returns:
+       generator of str: yielded CSV rows in the format (yr, mo, day, symbol, BUY/SELL, shares)
+    """
+    sell_delay = float(unicode(sell_delay))
+    for i, (t, row) in enumerate(events.iterrows()):
+        for sym, event in row.to_dict().iteritems():
+            # print sym, event, type(event)
+            # return events
+            if event and not np.isnan(event):
+                # add a sell event `sell_delay` in the future within the existing `events` DataFrame
+                # modify the series, but only in the future and be careful not to step on existing events
+                if event > 0:
+                    sell_event_i = min(i + sell_delay, len(events) - 1)
+                    sell_event_t = events.index[sell_event_i]
+                    sell_event = events[sym][sell_event_i]
+                    if np.isnan(sell_event):
+                        events[sym][sell_event_t] = -1
+                    else:
+                        events[sym][sell_event_t] += -1
+                order = (t.year, t.month, t.day, sym, 'BUY' if event > 0 else 'SELL', abs(event) * 100)
+                if isinstance(sep, basestring):
+                    yield sep.join(order)
+                yield order
+                    
+
 
 def buy_on_drop(
             symbol_set=None, 
@@ -141,6 +177,7 @@ def buy_on_drop(
             market_sym='$SPX',
             threshold=5,
             yr=2012,
+            sell_delay=5,
             ):
     '''Compute and display an "event profile" for multiple sets of symbols'''
     if not symbol_set:
@@ -153,18 +190,9 @@ def buy_on_drop(
     trigger_kwargs={'threshold': threshold}
     events = find_events(symbol_set, market_data,  market_sym=market_sym, trigger=drop_below, trigger_kwargs=trigger_kwargs)
 
-    keys = events.keys()
-    return events
-    for i, row in enumerate(events.iterrows()):
-        print i, row
-        for sym, event in zip(keys, row):
-            print sym, event
-            if event in [1, -1]:
-                events[sym][min(i + 5, len(events))] = -1
-                if event > 0:
-                    print '{0},{1},{2}, {3}, {4}, {5}'.format(
-                        row[0].year, row[0].month, row[0].day, sym, 'BUY' if event > 0 else 'SELL', math.abs(event) * 100)
-    return events
+    for order in events_to_orders(events, sell_delay=sell_delay):
+        print order
+
     print "Creating Study report for {0} events...".format(len(events))
     ep.eventprofiler(events, market_data, 
                          i_lookback=20, i_lookforward=20,
