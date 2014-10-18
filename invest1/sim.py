@@ -43,6 +43,25 @@ def get_price(symbol='SPY', date=(2010,1,1), price='close'):
         print 'BAD DATE ({0}) or SYMBOL ({1})'.format(date, symbol) 
         return None
 
+def portfolio_value(portfolio, date):
+    """Total value of a portfolio (dict mapping symbols to numbers of shares)
+
+    $CASH used as symbol for USD
+    """
+    value = 0.
+    for (sym, sym_shares) in portfolio.iteritems():
+        sym_price = get_price(symbol=sym, date=date, price='close')
+        print sym, sym_shares, sym_price
+        # print last_date, k, price
+        if sym_price != None and not np.isnan(sym_price):
+            value = value + (float(sym_shares) * float(sym_price))
+            print 'new price, value = {0}, {1}'.format(sym_price, value)
+        else:
+            # print 'NAN'*20
+            value = None
+            break
+    return value
+
 
 def main(args):
     print args
@@ -51,60 +70,42 @@ def main(args):
     portfolio = { '$CASH': args.funds }
     print portfolio
     csvreader = csv.reader(args.infile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+    csvwriter = csv.writer(args.outfile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
     history = []
 
-    trading_days = du.getNYSEdays(dt.datetime(2010,01,01), dt.datetime(2012,01,01), dt.timedelta(hours=16))
+    #trading_days = du.getNYSEdays(dt.datetime(2010,01,01), dt.datetime(2012,01,01), dt.timedelta(hours=16))
     for row in csvreader:
-        csvwriter = csv.writer(args.outfile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
         print '-'*80
         print ', '.join(row)
-        symbol = row[3]
-        shares = float(row[5])
-        date = dt.datetime(*[int(i) for i in row[:3] + ['16']])
-        sign = 1 - 2 * int(row[4].strip().upper()[0]=='S')
-        # print date, symbol, sign * shares
-        portfolio[symbol] = portfolio.get(symbol, 0) + sign * shares
-        trade_price = get_price(symbol=symbol, date=date, price='close')
-        while trade_price == None or np.isnan(trade_price) or float(trade_price) == float('nan') or float(trade_price) == None:
-            date += dt.timedelta(1)
-            trade_price = get_price(symbol=symbol, date=date, price='close')
-        print date, symbol, sign, shares, trade_price
+        trade_date = dt.datetime(*[int(i) for i in (row[:3] + [16])])
 
         if history:
-            last_date = dt.date(*history[-1][:3])
+            last_date = dt.datetime(*(history[-1][:3] + [16])) + dt.timedelta(1)
             # print (date.date() - last_date).days
-            while (date.date() - last_date).days > 1:
-                print 'filling in the blanks for {0}'.format(last_date)
-                last_date += dt.timedelta(1)
-                value = 0.
-                for (k, v) in portfolio.iteritems():
-                    price = get_price(symbol=k, date=last_date, price='close')
-                    print k, v, price
-                    # print last_date, k, price
-                    if price != None and not np.isnan(price):
-                        value = value + (float(v) * float(price))
-                        print 'new price, value = {0}, {1}'.format(price, value)
-                    else:
-                        # print 'NAN'*20
-                        value = None
-                        break
-                if value != None and not np.isnan(value):
+            while (trade_date - last_date).days > 0:
+                print 'Filling in the blanks for {0}'.format(last_date)
+                value = portfolio_value(portfolio, last_date)
+                if value != None:
                     print '='*20 + str(value)
                     history += [[last_date.year, last_date.month, last_date.day, value]]
                     csvwriter.writerow(history[-1])
+                last_date += dt.timedelta(1)
     
-        if trade_price and shares and sign in (-1, 1):
-            portfolio['$CASH'] -= sign * shares * trade_price
+        trade_symbol = row[3]
+        trade_shares = float(row[5])
+        trade_sign = 1 - 2 * int(row[4].strip().upper()[0]=='S')
+        # print date, symbol, sign * shares
+        portfolio[trade_symbol] = portfolio.get(trade_symbol, 0) + trade_sign * trade_shares
+        trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
+        while trade_price == None or np.isnan(trade_price) or float(trade_price) == float('nan') or float(trade_price) == None:
+            trade_date += dt.timedelta(1)
+            trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
+        print trade_date, trade_symbol, trade_sign, trade_shares, trade_price
+        if trade_price and trade_shares and trade_sign in (-1, 1):
+            portfolio['$CASH'] -= trade_sign * trade_shares * trade_price
         else:
-            print 'ERROR: bad price, sign, shares: ', price, sign, shares
-        total = 0.
-        for (k, v) in portfolio.iteritems():
-            price = get_price(symbol=k, date=date, price='close')
-            # print date, k, price
-            total += v * price
-        print portfolio
-
-        history += [[date.year, date.month, date.day, total]]
+            print 'ERROR: bad price, sign, shares: ', trade_price, trade_sign, trade_shares
+        history += [[trade_date.year, trade_date.month, trade_date.day, portfolio_value(portfolio, trade_date)]]
         csvwriter.writerow(history[-1])
 
 
