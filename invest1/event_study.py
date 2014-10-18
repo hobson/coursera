@@ -12,14 +12,15 @@ Created on January, 23, 2013
 '''
 
 
-import pandas as pd
-import numpy as np
-import math
+#import math
 import copy
-import QSTK.qstkutil.qsdateutil as du
 import datetime as dt
+
+import numpy as np
+#import pandas as pd
+import QSTK.qstkutil.qsdateutil as du
 import QSTK.qstkutil.DataAccess as da
-import QSTK.qstkutil.tsutil as tsu
+# import QSTK.qstkutil.tsutil as tsu
 import QSTK.qstkstudy.EventProfiler as ep
 
 """
@@ -56,7 +57,7 @@ def drop_below(threshold=5, **kwargs):
     return bool(kwargs['price_today'] < threshold and kwargs['price_yest'] >= threshold)
 
 
-def find_events(ls_symbols, d_data, market_sym='SPY', threshold=5):
+def find_events(ls_symbols, d_data, market_sym='$SPX', threshold=5):
     ''' Finding Events to put in a dataframe '''
 
     df_close = d_data['actual_close']
@@ -94,7 +95,7 @@ def get_clean_data(symbols=None,
                    dataobj=da.DataAccess('Yahoo'), 
                    start=dt.datetime(2008, 1, 1), 
                    end=dt.datetime(2009, 12, 31),
-                   market_sym='SPY',
+                   market_sym='$SPX',
                    reset_cache=True):
     if not symbols:
         symbols = dataobj.get_symbols_from_list("sp5002008")
@@ -119,11 +120,11 @@ def get_clean_data(symbols=None,
 
 
 def compare(symbol_sets=None, 
-            dataobj=da.DataAccess('Yahoo', cachestalltime=0), 
+            dataobj=da.DataAccess('Yahoo'), 
             start=dt.datetime(2008, 1, 1), 
             end=dt.datetime(2009, 12, 31),
-            market_sym='SPY',
-            threshold=10,
+            market_sym='$SPX',
+            threshold=5,
             ):
     '''Compute and display an "event profile" for multiple sets of symbols'''
     if not symbol_sets:
@@ -148,9 +149,42 @@ def compare(symbol_sets=None,
                              )]
     return event_profiles
 
+
+def buy_on_drop(
+            symbol_set=None, 
+            dataobj=da.DataAccess('Yahoo'), 
+            start=dt.datetime(2008, 1, 1), 
+            end=dt.datetime(2009, 12, 31),
+            market_sym='$SPX',
+            threshold=5,
+            yr=2012,
+            ):
+    '''Compute and display an "event profile" for multiple sets of symbols'''
+    if not symbol_set:
+        symbol_set = dataobj.get_symbols_from_list("sp500{0}".format(yr))
+        symbol_set.append(market_sym)
+
+    print "Starting Event Study..."
+    print "Cleaning NaNs from data for {0} symbols in SP500-{1}...".format(len(symbol_set), yr)
+    market_data = get_clean_data(symbol_set, dataobj=dataobj, start=start, end=end)
+    print "Finding events for {0} symbols in SP500-{1}...".format(len(symbol_set), yr)
+    events = find_events(symbol_set, market_data, threshold=threshold, market_sym=market_sym)
+    for row in events:
+        print row
+    print "Creating Study report for {0} events...".format(len(events))
+    # event_profile = ep.eventprofiler(df_events, d_data, 
+    #                      i_lookback=20, i_lookforward=20,
+    #                      s_filename='event_study_report-10dollar-{0}.pdf'.format(yr),
+    #                      b_market_neutral=True,
+    #                      b_errorbars=True,
+    #                      s_market_sym=market_sym,
+    #                      )
+    #return event_profile
+
 if __name__ == '__main__':
     """year threshold # events
        2012 6.0 220-230
        2008 8.0 510-530 or 540-550
     """
+    print buy_on_drop()
     # print compare()

@@ -58,8 +58,7 @@ def portfolio_value(portfolio, date):
             print 'new price, value = {0}, {1}'.format(sym_price, value)
         else:
             # print 'NAN'*20
-            value = None
-            break
+            return None
     return value
 
 
