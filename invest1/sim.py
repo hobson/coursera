@@ -1,17 +1,22 @@
 #!/usr/bin/env python
-# Example command line usage:
-# python marketsim.py 1000000 orders.csv values.csv
-#
-# Example orders.csv:
-# 2008, 12, 3, AAPL, BUY, 130
-# 2008, 12, 8, AAPL, SELL, 130
-# 2008, 12, 5, IBM, BUY, 50
-#
-# Example output file values.csv
-# 2008, 12, 3, 1000000
-# 2008, 12, 4, 1000010
-# 2008, 12, 5, 1000250
+from __future__ import division, unicode_literals
+"""Simulate a sequence of trades and portfolio performance over time
 
+Examples:
+  $ python marketsim.py 1000000 orders.csv values.csv
+
+  # input file
+  $ cat orders.csv:
+  2008, 12, 3, AAPL, BUY, 130
+  2008, 12, 8, AAPL, SELL, 130
+  2008, 12, 5, IBM, BUY, 50
+
+  # output file
+  $ cat values.csv
+  2008, 12, 3, 1000000
+  2008, 12, 4, 1000010
+  2008, 12, 5, 1000250
+"""
 import argparse
 import sys
 import csv
@@ -111,6 +116,7 @@ def sim(args):
         csvwriter.writerow(history[-1])
 
 
+
 def parse_args():
     # create the top-level parser for this "sim" module
     parser = argparse.ArgumentParser(prog='sim', description='Simulate trading and predictive analytics algorithms.')
@@ -141,3 +147,4 @@ if __name__ == '__main__':
     args = parse_args()
     print args
     sim(args)
+

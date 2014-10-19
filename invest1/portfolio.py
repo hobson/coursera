@@ -1,20 +1,27 @@
-from __future__ import division
+#!/usr/bin/env python
+from __future__ import division, unicode_literals
+"""Portfolio evaluation and optimization utilities"""
+
+import os
+import csv
+import math
+import itertools
+import datetime
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 import QSTK.qstkutil.qsdateutil as du
 #import QSTK.qstkutil.tsutil as tsu
 import QSTK.qstkutil.DataAccess as da
-import numpy as np
 
-import datetime as dt
-import matplotlib.pyplot as plt
-import math
-import itertools as it
 #import pandas as pd
 
 
 def chart(
     symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
-    start=dt.datetime(2005, 1, 1),
-    end=dt.datetime(2014, 10, 31),  # data stops at 2013/1/1
+    start=datetime.datetime(2005, 1, 1),
+    end=datetime.datetime(2014, 10, 31),  # data stops at 2013/1/1
     normalize=True,
     ):
     """Display a graph of the price history for the list of ticker symbols provided
@@ -28,7 +35,7 @@ def chart(
     """
 
     symbols = [s.upper() for s in symbols]
-    timeofday = dt.timedelta(hours=16)
+    timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
     c_dataobj = da.DataAccess('Yahoo')
@@ -52,8 +59,8 @@ def chart(
 
 def portfolio_prices(
     symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
-    start=dt.datetime(2005, 1, 1),
-    end=dt.datetime(2011, 12, 31),  # data stops at 2013/1/1
+    start=datetime.datetime(2005, 1, 1),
+    end=datetime.datetime(2011, 12, 31),  # data stops at 2013/1/1
     normalize=True,
     allocation=None, 
     ):
@@ -74,7 +81,7 @@ def portfolio_prices(
     allocation = np.array([(float(a) / total) for a in allocation])
 
     symbols = [s.upper() for s in symbols]
-    timeofday = dt.timedelta(hours=16)
+    timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
     c_dataobj = da.DataAccess('Yahoo')
@@ -93,10 +100,20 @@ def metrics(prices, fudge=True):
     """Calculate the volatiliy, average daily return, Sharpe ratio, and cumulative return
 
     Examples:
-      >>> metrics(np.array([1,2,3,4]))
-      >>> metrics(portfolio_prices(symbols=['AAPL', 'GLD', 'GOOG', 'XOM'], start=dt.datetime(2011,1,1), end=dt.datetime(2011,12,31), allocations=[0.4, 0.4, 0.0, 0.2]))
-      0.0101467067654, 0.000657261102001, 1.02828403099, 1.16487261965
+      >>> metrics(np.array([1,2,3,4])) == {'mean': 0.61111111111111105, 'return': 4.0, 'sharpe': 34.245718429742873, 'std': 0.28327886186626583}
+      True
+      >>> metrics(portfolio_prices(symbols=['AAPL', 'GLD', 'GOOG', 'XOM'], start=datetime.datetime(2011,1,1), end=datetime.datetime(2011,12,31), allocations=[0.4, 0.4, 0.0, 0.2])
+      ...        ) == {'std': 0.0101467067654, 'mean': 0.000657261102001, 'sharpe': 1.02828403099, 'return': 1.16487261965} 
+      True
     """
+    if isinstance(prices, basestring) and os.path.isfile(prices):
+        values = []
+        with csv.reader(open(prices), dialect='excel', quoting=csv.QUOTE_MINIMAL) as reader:
+            for row in reader:
+                values += [row[-1]]
+        prices = values
+    p.metrics(values)
+
     prices = np.array([float(p) for p in prices])
     if isinstance(fudge, (float, int)):
         fudge = float(fudge)
@@ -107,12 +124,14 @@ def metrics(prices, fudge=True):
     daily_returns = np.diff(prices) / prices[0:-1]
     mean = fudge * np.average(daily_returns)
     variance = fudge * np.sum((daily_returns - mean) * (daily_returns - mean)) / len(daily_returns)
-    return math.sqrt(variance), mean, mean * np.sqrt(252.) / np.sqrt(variance), (prices[-1] - prices[0]) / prices[0] + 1.
+    return {'std': math.sqrt(variance), 'mean': mean, 
+            'sharpe': mean * np.sqrt(252.) / np.sqrt(variance), 
+            'return': (prices[-1] - prices[0]) / prices[0] + 1.}
 
 
-def prices(symbol='$DJI', start=dt.datetime(2009,2,1), end=dt.datetime(2012,7,31)):
+def prices(symbol='$DJI', start=datetime.datetime(2009,2,1), end=datetime.datetime(2012,7,31)):
     symbol = symbol.upper()
-    timeofday = dt.timedelta(hours=16)
+    timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
     c_dataobj = da.DataAccess('Yahoo')
@@ -124,8 +143,8 @@ def prices(symbol='$DJI', start=dt.datetime(2009,2,1), end=dt.datetime(2012,7,31
 
 
 def simulate(symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
-    start=dt.datetime(2005, 1, 1),
-    end=dt.datetime(2011, 12, 31),  # data stops at 2013/1/1
+    start=datetime.datetime(2005, 1, 1),
+    end=datetime.datetime(2011, 12, 31),  # data stops at 2013/1/1
     normalize=True,
     allocation=None,
     fudge=True,
@@ -134,12 +153,12 @@ def simulate(symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
     return metrics(p, fudge=fudge)
 
 def optimize_allocation(symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM"),
-                        start=dt.datetime(2005, 1, 1),
-                        end=dt.datetime(2011, 12, 31),  
+                        start=datetime.datetime(2005, 1, 1),
+                        end=datetime.datetime(2011, 12, 31),  
                         normalize=True,
                         ):
     N = len(symbols)
-    alloc = it.product(range(11), repeat=N-1)
+    alloc = itertools.product(range(11), repeat=N-1)
     best_results = [0, 0, 0, 0]
 
     for a in alloc:
