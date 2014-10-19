@@ -50,12 +50,14 @@ def portfolio_value(portfolio, date):
     """
     value = 0.
     for (sym, sym_shares) in portfolio.iteritems():
-        sym_price = get_price(symbol=sym, date=date, price='close')
+        sym_price = None
+        if sym_shares:
+            sym_price = get_price(symbol=sym, date=date, price='close')
         print sym, sym_shares, sym_price
         # print last_date, k, price
         if sym_price != None and not np.isnan(sym_price):
             value = value + (float(sym_shares) * float(sym_price))
-            print 'new price, value = {0}, {1}'.format(sym_price, value)
+            # print 'new price, value = {0}, {1}'.format(sym_price, value)
         else:
             # print 'NAN'*20
             return None

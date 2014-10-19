@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 '''Finds events in time-series data and plots statistics about following and preceding events'''
-from __future__ import unicode_literal
+from __future__ import unicode_literals
 
 import sys
 import os
@@ -148,7 +149,7 @@ def generate_orders(events, sell_delay=5, sep=','):
         otherwise the separator will be used to join the order parameters into the yielded str
 
     Returns:
-       generator of str: yielded CSV rows in the format (yr, mo, day, symbol, BUY/SELL, shares)
+       generator of str: yielded CSV rows in the format (yr, mo, day, symbol, Buy/Sell, shares)
     """
     sell_delay = float(unicode(sell_delay))
     for i, (t, row) in enumerate(events.iterrows()):
@@ -166,7 +167,7 @@ def generate_orders(events, sell_delay=5, sep=','):
                         events[sym][sell_event_t] = -1
                     else:
                         events[sym][sell_event_t] += -1
-                order = (t.year, t.month, t.day, sym, 'BUY' if event > 0 else 'SELL', abs(event) * 100)
+                order = (t.year, t.month, t.day, sym, 'Buy' if event > 0 else 'Sell', abs(event) * 100)
                 if isinstance(sep, basestring):
                     yield sep.join(order)
                 yield order
@@ -210,18 +211,18 @@ def buy_on_drop(args, symbol_set=None,
 def parse_args():
     "Create and run the top-level parser for this `{0}` module".format(PROG)
 
-    parser = argparse.ArgumentParser(prog='events', description='Simulate trading and predictive analytics algorithms.')
+    parser = argparse.ArgumentParser(prog='events', description='Process market data to identify and act on trigger events.')
     parser.add_argument('--source',
                         default='Yahoo',
                         choices=('Yahoo', 'Google', 'Bloomberg'),
                         help='Name of financial data source to use in da.DataAccess("Name")')
 
-    subparsers = parser.add_subparsers(help='`{0} trade` help'.__name__)
+    subparsers = parser.add_subparsers(help='`{0} trade` help'.format(PROG))
 
     # create the parser for the "a" command
-    parser_trade = subparsers.add_parser('trade', help='Simulate a sequence of trades')
+    parser_trade = subparsers.add_parser('trade', help='Generate a sequence of trades based on event triggers')
     parser_trade.add_argument('outfile', nargs='?', type=argparse.FileType('w'),
-                              help='Path to output CSV file containing a list of values of the portfolio over time',
+                              help="Path to output CSV file to contain the trades (yr, mo, day, symbol, 'Buy'/'Sell', shares)",
                               default=sys.stdout)
     return parser.parse_args()
 
@@ -230,5 +231,7 @@ if __name__ == '__main__':
        2012 6.0 220-230
        2008 8.0 510-530 or 540-550
     """
-    pass 
+    args = parse_args()
+    print args
+    buy_on_drop(args)
     #print buy_on_drop()
