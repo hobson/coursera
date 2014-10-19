@@ -20,7 +20,7 @@ import datetime as dt
 import numpy as np
 
 import QSTK.qstkutil.DataAccess as da
-#import QSTK.qstkutil.qsdateutil as du
+#/import QSTK.qstkutil.qsdateutil as du
 #t = qstk.dateutil.getNYSEdays(datetime.datetime(2010,1,1), datetime.datetime(2010,2,1), dt.timedelta(hours=16))
 dataobj = da.DataAccess('Yahoo')
 
@@ -63,6 +63,7 @@ def portfolio_value(portfolio, date):
 
 
 def sim(args):
+    """Simulate a sequence of trades indicated in `infile` and write the portfolio value time series to `outfile`"""
     print args
     print vars(args)['funds']
     print args.funds
@@ -107,7 +108,8 @@ def sim(args):
         history += [[trade_date.year, trade_date.month, trade_date.day, portfolio_value(portfolio, trade_date)]]
         csvwriter.writerow(history[-1])
 
-def parse_arguments():
+
+def parse_args():
     # create the top-level parser for this "sim" module
     parser = argparse.ArgumentParser(prog='sim', description='Simulate trading and predictive analytics algorithms.')
     parser.add_argument('--source',

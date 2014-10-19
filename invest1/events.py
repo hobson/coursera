@@ -1,10 +1,13 @@
 '''Finds events in time-series data and plots statistics about following and preceding events'''
 from __future__ import unicode_literal
 
-
-# import math
+import sys
+import os
 import copy
 import datetime as dt
+import argparse
+import csv
+# import math
 
 import numpy as np
 #import pandas as pd
@@ -15,6 +18,7 @@ import QSTK.qstkstudy.EventProfiler as ep
 
 from pug.decorators import memoize
 
+PROG = os.path.splitext(__file__)[0]
 
 tucker = da.DataAccess('Yahoo')
 
@@ -102,7 +106,6 @@ def get_clean_data(symbols=None,
     return d_data
 
 
-
 def compare(symbol_sets=None, 
             dataobj=None, 
             start=None, 
@@ -133,7 +136,8 @@ def compare(symbol_sets=None,
                              )]
     return event_profiles
 
-def events_to_orders(events, sell_delay=5, sep=','):
+
+def generate_orders(events, sell_delay=5, sep=','):
     """Generate CSV orders based on events indicated in a DataFrame
 
     Arguments:
@@ -166,11 +170,9 @@ def events_to_orders(events, sell_delay=5, sep=','):
                 if isinstance(sep, basestring):
                     yield sep.join(order)
                 yield order
-                    
 
 
-def buy_on_drop(
-            symbol_set=None, 
+def buy_on_drop(args, symbol_set=None, 
             dataobj=tucker, 
             start=dt.datetime(2008, 1, 1), 
             end=dt.datetime(2009, 12, 31),
@@ -190,8 +192,9 @@ def buy_on_drop(
     trigger_kwargs={'threshold': threshold}
     events = find_events(symbol_set, market_data,  market_sym=market_sym, trigger=drop_below, trigger_kwargs=trigger_kwargs)
 
-    for order in events_to_orders(events, sell_delay=sell_delay):
-        print order
+    csvwriter = csv.writer(args.outfile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+    for order in generate_orders(events, sell_delay=sell_delay, sep=None):
+        csvwriter.writerow(order)
 
     print "Creating Study report for {0} events...".format(len(events))
     ep.eventprofiler(events, market_data, 
@@ -202,6 +205,25 @@ def buy_on_drop(
                          s_market_sym=market_sym,
                          )
     return events
+
+
+def parse_args():
+    "Create and run the top-level parser for this `{0}` module".format(PROG)
+
+    parser = argparse.ArgumentParser(prog='events', description='Simulate trading and predictive analytics algorithms.')
+    parser.add_argument('--source',
+                        default='Yahoo',
+                        choices=('Yahoo', 'Google', 'Bloomberg'),
+                        help='Name of financial data source to use in da.DataAccess("Name")')
+
+    subparsers = parser.add_subparsers(help='`{0} trade` help'.__name__)
+
+    # create the parser for the "a" command
+    parser_trade = subparsers.add_parser('trade', help='Simulate a sequence of trades')
+    parser_trade.add_argument('outfile', nargs='?', type=argparse.FileType('w'),
+                              help='Path to output CSV file containing a list of values of the portfolio over time',
+                              default=sys.stdout)
+    return parser.parse_args()
 
 if __name__ == '__main__':
     """year threshold # events
