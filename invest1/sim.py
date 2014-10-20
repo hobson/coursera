@@ -66,11 +66,10 @@ def portfolio_value(portfolio, date):
         print sym, sym_shares, sym_price
         # print last_date, k, price
         if sym_price != None and not np.isnan(sym_price):
-            value = value + (float(sym_shares) * float(sym_price))
+            value += float(sym_shares) * float(sym_price)
             # print 'new price, value = {0}, {1}'.format(sym_price, value)
         else:
-            print 'price, shares, value, total: ', sym_price, sym_shares, (float(sym_shares) * float(sym_price)), value
-            return None
+            print 'price, shares, value, total: ', sym_price, sym_shares, (float(sym_shares) * float(sym_price)) if sym_shares and sym_price else 'Invalid', value
     return value
 
 
