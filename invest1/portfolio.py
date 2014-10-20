@@ -57,6 +57,48 @@ def chart(
     return na_price
 
 
+def chart_series(series, market_sym='$SPX', price='close', normalize=True):
+    """Display a graph of the price history for the list of ticker symbols provided
+
+
+    Arguments:
+      symbols (list of str): Ticker symbols like "GOOG", "AAPL", etc
+      start (datetime): The date at the start of the period being analyzed.
+      end (datetime): The date at the end of the period being analyzed.
+      normalize (bool): Whether to normalize prices to 1 at the start of the time series.
+    """
+    if series:
+        start = datetime.datetime(*(series[0][:3]))
+        end = datetime.datetime(*(series[-1][:3]))
+    else:
+        start=datetime.datetime(2008, 1, 1)
+        end=datetime.datetime(2009, 12, 28)
+ 
+    timeofday = datetime.timedelta(hours=16)
+    timestamps = du.getNYSEdays(start, end, timeofday)
+    if market_sym:
+        symbols = [market_sym.upper().strip()]
+
+        c_dataobj = da.DataAccess('Yahoo')
+        # ls_keys = ['open', 'high', 'low', 'close', 'volume', 'actual_close']
+        ls_keys = [price]
+        ldf_data = c_dataobj.get_data(timestamps, symbols, ls_keys)
+        d_data = dict(zip(ls_keys, ldf_data))
+
+    na_price = d_data[price].values
+    if normalize:
+        na_price /= na_price[0, :]
+    plt.clf()
+    plt.plot(timestamps, na_price)
+    plt.legend(symbols)
+    plt.ylabel(price.title())
+    plt.xlabel('Date')
+    # plt.savefig('portfolio.chart_series.pdf', format='pdf')
+    plt.grid(True)
+    plt.show()
+    return na_price
+
+
 def portfolio_prices(
     symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
     start=datetime.datetime(2005, 1, 1),
@@ -96,8 +138,13 @@ def portfolio_prices(
     return np.sum(na_price, axis=1)
 
 
-def metrics(prices, fudge=True):
+def metrics(prices, fudge=False, sharpe_days=252):
     """Calculate the volatiliy, average daily return, Sharpe ratio, and cumulative return
+
+    Arguments:
+      prices (file or basestring or iterable): path to file or file pointer or sequence of prices/values of a portfolio or equity
+      fudge (bool): Whether to use Tucker Balche's erroneous division by N or the more accurate N-1 for stddev of returns
+      sharpe_days: Number of trading days in a year. Sharpe ratio = sqrt(sharpe_days) * total_return / std_dev_of_daily_returns
 
     Examples:
       >>> metrics(np.array([1,2,3,4])) == {'mean': 0.61111111111111105, 'return': 4.0, 'sharpe': 34.245718429742873, 'std': 0.28327886186626583}
@@ -107,13 +154,19 @@ def metrics(prices, fudge=True):
       True
     """
     if isinstance(prices, basestring) and os.path.isfile(prices):
+        prices = open(prices, 'rU')
+    if isinstance(prices, file):
         values = []
-        with csv.reader(open(prices), dialect='excel', quoting=csv.QUOTE_MINIMAL) as reader:
-            for row in reader:
-                values += [row[-1]]
+        csvreader = csv.reader(prices, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+        for row in csvreader:
+            print row
+            values += [row[-1]]
+        prices.close()
         prices = values
-    p.metrics(values)
-
+    if isinstance(prices[0], (tuple, list)):
+        prices = [row[-1] for row in prices]
+    if sharpe_days == None:
+        sharpe_days = len(prices)
     prices = np.array([float(p) for p in prices])
     if isinstance(fudge, (float, int)):
         fudge = float(fudge)
@@ -125,7 +178,7 @@ def metrics(prices, fudge=True):
     mean = fudge * np.average(daily_returns)
     variance = fudge * np.sum((daily_returns - mean) * (daily_returns - mean)) / len(daily_returns)
     return {'std': math.sqrt(variance), 'mean': mean, 
-            'sharpe': mean * np.sqrt(252.) / np.sqrt(variance), 
+            'sharpe': mean * np.sqrt(sharpe_days) / np.sqrt(variance), 
             'return': (prices[-1] - prices[0]) / prices[0] + 1.}
 
 

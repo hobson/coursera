@@ -25,8 +25,13 @@ import re
 
 import numpy as np
 
+from pug import debug
 import QSTK.qstkutil.DataAccess as da
 #/import QSTK.qstkutil.qsdateutil as du
+
+import portfolio as report
+
+
 #t = qstk.dateutil.getNYSEdays(datetime.datetime(2010,1,1), datetime.datetime(2010,2,1), dt.timedelta(hours=16))
 dataobj = da.DataAccess('Yahoo')
 
@@ -65,11 +70,14 @@ def portfolio_value(portfolio, date):
             sym_price = get_price(symbol=sym, date=date, price='actual_close')
         print sym, sym_shares, sym_price
         # print last_date, k, price
-        if sym_price != None and not np.isnan(sym_price):
-            value += float(sym_shares) * float(sym_price)
-            # print 'new price, value = {0}, {1}'.format(sym_price, value)
-        else:
-            print 'price, shares, value, total: ', sym_price, sym_shares, (float(sym_shares) * float(sym_price)) if sym_shares and sym_price else 'Invalid', value
+        if sym_price != None:
+            if np.isnan(sym_price):
+                print 'Invalid price, shares, value, total: ', sym_price, sym_shares, (float(sym_shares) * float(sym_price)) if sym_shares and sym_price else 'Invalid', value
+                if sym_shares:
+                    return float('nan')
+            else:
+                value += float(sym_shares) * float(sym_price)
+                # print 'new price, value = {0}, {1}'.format(sym_price, value)
     return value
 
 
@@ -86,7 +94,7 @@ def sim(args):
 
     #trading_days = du.getNYSEdays(dt.datetime(2010,01,01), dt.datetime(2012,01,01), dt.timedelta(hours=16))
     for row in csvreader:
-        print '-'*80
+        print '-'*30 + ' CSV Row ' + '-'*30
         print ', '.join(row)
         trade_date = dt.datetime(*[int(i) for i in (row[:3] + [16])])
 
@@ -95,12 +103,11 @@ def sim(args):
             # print (date.date() - last_date).days
             while (trade_date - last_date).days > 0:
                 print 'Filling in the blanks for {0}'.format(last_date)
-                print portfolio
                 value = portfolio_value(portfolio, last_date)
-                print portfolio
-                print value
-                if value != None:
-                    print '='*20 + str(value)
+                print '   porfolio value on that date is: ' + str(value)
+                assert(value != None)
+                # NaN for porfolio value indicates a non-trading day
+                if not np.isnan(value):
                     history += [[last_date.year, last_date.month, last_date.day, value]]
                     csvwriter.writerow(history[-1])
                 last_date += dt.timedelta(1)
@@ -121,10 +128,15 @@ def sim(args):
             print 'ERROR: bad price, sign, shares: ', trade_price, trade_sign, trade_shares
         history += [[trade_date.year, trade_date.month, trade_date.day, portfolio_value(portfolio, trade_date)]]
         csvwriter.writerow(history[-1])
+    print report.metrics(history)
 
 
+def analyze(args):
+    print 'Report for {0}'.format(args.infile)
+    print report.metrics(args.infile)
 
-def parse_args():
+
+def build_args_parser(parser=None):
     # create the top-level parser for this "sim" module
     parser = argparse.ArgumentParser(prog='sim', description='Simulate trading and predictive analytics algorithms.')
     parser.add_argument('--source',
@@ -133,8 +145,12 @@ def parse_args():
                         help='Name of financial data source to use in da.DataAccess("Name")')
 
     subparsers = parser.add_subparsers(help='`sim trade` help')
+    print '?'*10 + 'subparser: '
+    print subparsers
+    print dir(parser)
+    print parser.__dict__
 
-    # create the parser for the "a" command
+    # create the parser for the "trade" command
     parser_trade = subparsers.add_parser('trade', help='Simulate a sequence of trades')
     parser_trade.add_argument('funds', type=float,
                               nargs='?',
@@ -144,14 +160,42 @@ def parse_args():
                               help='Path to input CSV file containing a list of trades: y,m,d,sym,BUY/SELL,shares',
                               default=sys.stdin)
     parser_trade.add_argument('outfile', nargs='?', type=argparse.FileType('w'),
-                              help='Path to output CSV file containing a list of values of the portfolio over time',
+                              help='Path to output CSV file where a time series of dates and portfolio values will be written',
                               default=sys.stdout)
+    parser_trade.set_defaults(func=sim)
 
-    return parser.parse_args()
+    # create the parser for the "analyze" command
+    parser_analyze = subparsers.add_parser('analyze', help='Analyze a time series (sequence) of prices (typically portfolio values)')
+    parser_analyze.add_argument('infile', nargs='?', type=argparse.FileType('rU'),
+                              help='Path to input CSV file containing sequence of prices (portfolio values) in the last column. Typically each line should be a (yr, mo, dy, price) CSV string for each trading day in the sequence',
+                              default=sys.stdin)
+    parser_analyze.set_defaults(func=analyze)
+
+    # print sys.argv
+    # #args = parser.parse_args()
+    # argsv1 = ' '.join(sys.argv[1:]).split()
+    # print argsv1
+    # argsv2 = ' '.join('analyze 1 -x 2'.split()).split()
+    # print argsv2
+    # args2 = parser.parse_args(argsv2)
+    # args.func(args2)
+    # print dir(args2)
+    # args1 = parser.parse_args(argsv1)
+    # args.func(args1)
+    # print dir(args1)
+
+    print '!'*10 + 'subparser: '
+    print subparsers
+    print '!'*10 + 'dir(parser): '
+    print dir(parser)
+    print '!'*10 + 'parser.__dict: '
+    print parser.__dict__
+    return parser
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    print args
-    sim(args)
+    # build the parser and then use it to parse the arguments in sys.args
+    args = build_args_parser().parse_args()
+    # run `sim()` or `analyze()` or whatever function is indicated by the `subparser.set_defaults()` for `args.main` 
+    args.func(args)
 
