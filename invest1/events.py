@@ -38,7 +38,14 @@ def drop_below(threshold=5, **kwargs):
 
     price_today < threshold and price_yesterday >= threshold
     """
-    return bool(kwargs['price_today'] < threshold and kwargs['price_yest'] >= threshold)
+    if (
+    #    kwargs['price_today'] and kwargs['price_yest'] and
+    #    not np.isnan(kwargs['price_today'] and not kwargs['price_yest'] and
+        kwargs['price_today'] < threshold and kwargs['price_yest'] >= threshold
+        ):
+        return True
+    else:
+        return False
 
 
 @memoize
@@ -175,8 +182,8 @@ def generate_orders(events, sell_delay=5, sep=','):
 
 def buy_on_drop(args, symbol_set=None, 
             dataobj=tucker, 
-            start=dt.datetime(2008, 1, 1), 
-            end=dt.datetime(2009, 12, 31),
+            start=dt.datetime(2008, 1, 3), 
+            end=dt.datetime(2009, 12, 28),
             market_sym='$SPX',
             threshold=5,
             yr=2012,

@@ -21,6 +21,7 @@ import argparse
 import sys
 import csv
 import datetime as dt
+import re
 
 import numpy as np
 
@@ -29,24 +30,28 @@ import QSTK.qstkutil.DataAccess as da
 #t = qstk.dateutil.getNYSEdays(datetime.datetime(2010,1,1), datetime.datetime(2010,2,1), dt.timedelta(hours=16))
 dataobj = da.DataAccess('Yahoo')
 
+DATE_SEP = re.compile(r'[^0-9]')
 
-def get_price(symbol='SPY', date=(2010,1,1), price='close'):
+def get_price(symbol='SPY', date=(2010,1,1), price='actual_close'):
     # if hasattr(symbol, '__iter__'):
     #     return [get_price(sym, date=date, price=price) for sym in symbol]
     if isinstance(date, basestring):
-        date = dt.datetime(*date.split(','))
-    elif isinstance(date, (tuple, list)):
-        date = dt.datetime(*date)
-    elif isinstance(date, dt.date):
+        date = DATE_SEP.split(date)
+    if isinstance(date, (tuple, list)):
+        date = dt.datetime(*[int(i) for i in date])
+    if isinstance(date, dt.date) or not (9 <= date.hour <= 16):
         date = dt.datetime(date.year, date.month, date.day, 16)
     symbol = str(symbol).upper().strip()
     if symbol == '$CASH':
         return 1.
     try:
-        return dataobj.get_data([date], [symbol], 'close')[symbol][0]
+        return dataobj.get_data([date], [symbol], [price])[0][symbol][0]
+    except IndexError:
+        raise
     except:
         print 'BAD DATE ({0}) or SYMBOL ({1})'.format(date, symbol) 
         return None
+
 
 def portfolio_value(portfolio, date):
     """Total value of a portfolio (dict mapping symbols to numbers of shares)
@@ -57,14 +62,14 @@ def portfolio_value(portfolio, date):
     for (sym, sym_shares) in portfolio.iteritems():
         sym_price = None
         if sym_shares:
-            sym_price = get_price(symbol=sym, date=date, price='close')
+            sym_price = get_price(symbol=sym, date=date, price='actual_close')
         print sym, sym_shares, sym_price
         # print last_date, k, price
         if sym_price != None and not np.isnan(sym_price):
             value = value + (float(sym_shares) * float(sym_price))
             # print 'new price, value = {0}, {1}'.format(sym_price, value)
         else:
-            # print 'NAN'*20
+            print 'price, shares, value, total: ', sym_price, sym_shares, (float(sym_shares) * float(sym_price)), value
             return None
     return value
 
@@ -91,7 +96,10 @@ def sim(args):
             # print (date.date() - last_date).days
             while (trade_date - last_date).days > 0:
                 print 'Filling in the blanks for {0}'.format(last_date)
+                print portfolio
                 value = portfolio_value(portfolio, last_date)
+                print portfolio
+                print value
                 if value != None:
                     print '='*20 + str(value)
                     history += [[last_date.year, last_date.month, last_date.day, value]]
@@ -103,10 +111,10 @@ def sim(args):
         trade_sign = 1 - 2 * int(row[4].strip().upper()[0]=='S')
         # print date, symbol, sign * shares
         portfolio[trade_symbol] = portfolio.get(trade_symbol, 0) + trade_sign * trade_shares
-        trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
+        trade_price = get_price(symbol=trade_symbol, date=trade_date, price='actual_close')
         while trade_price == None or np.isnan(trade_price) or float(trade_price) == float('nan') or float(trade_price) == None:
             trade_date += dt.timedelta(1)
-            trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
+            trade_price = get_price(symbol=trade_symbol, date=trade_date, price='actual_close')
         print trade_date, trade_symbol, trade_sign, trade_shares, trade_price
         if trade_price and trade_shares and trade_sign in (-1, 1):
             portfolio['$CASH'] -= trade_sign * trade_shares * trade_price
