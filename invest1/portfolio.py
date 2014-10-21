@@ -8,13 +8,15 @@ import math
 import itertools
 import datetime
 
+from dateutil.parser import parse as parse_date
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 import QSTK.qstkutil.qsdateutil as du
 #import QSTK.qstkutil.tsutil as tsu
-import QSTK.qstkutil.DataAccess as da
-
+import QSTK.qstkutil.DataAccess
+da = QSTK.qstkutil.DataAccess.DataAccess('Yahoo')
 #import pandas as pd
 
 
@@ -38,9 +40,8 @@ def chart(
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
-    c_dataobj = da.DataAccess('Yahoo')
     ls_keys = ['open', 'high', 'low', 'close', 'volume', 'actual_close']
-    ldf_data = c_dataobj.get_data(timestamps, symbols, ls_keys)
+    ldf_data = da.get_data(timestamps, symbols, ls_keys)
     d_data = dict(zip(ls_keys, ldf_data))
 
     na_price = d_data['close'].values
@@ -62,41 +63,44 @@ def chart_series(series, market_sym='$SPX', price='close', normalize=True):
 
 
     Arguments:
-      symbols (list of str): Ticker symbols like "GOOG", "AAPL", etc
-      start (datetime): The date at the start of the period being analyzed.
-      end (datetime): The date at the end of the period being analyzed.
+      series (dataframe, list of str, or list of tuples): 
+        datafram (Timestamp or Datetime for index)
+          other columns are float y-axis values to be plotted
+        list of str: 1st 3 comma or slash-separated integers are the year, month, day
+          others are float y-axis values
+        list of tuples: 1st 3 integers are year, month, day 
+          otehrs are float y-axis values
+      market_sym (str): ticker symbol of equity or comodity to plot along side the series
+      price (str): which market data value ('close', 'actual_close', 'volume', etc) to use 
+         for the market symbol for comparison to the series 
       normalize (bool): Whether to normalize prices to 1 at the start of the time series.
     """
-    if series:
-        start = datetime.datetime(*(series[0][:3]))
-        end = datetime.datetime(*(series[-1][:3]))
-    else:
-        start=datetime.datetime(2008, 1, 1)
-        end=datetime.datetime(2009, 12, 28)
+    series = make_dataframe(series)
+    start = series.index[0] or datetime.datetime(2008, 1, 1)
+    end = series.index[-1] or datetime.datetime(2009, 12, 28)
  
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
     if market_sym:
-        symbols = [market_sym.upper().strip()]
-
-        c_dataobj = da.DataAccess('Yahoo')
-        # ls_keys = ['open', 'high', 'low', 'close', 'volume', 'actual_close']
-        ls_keys = [price]
-        ldf_data = c_dataobj.get_data(timestamps, symbols, ls_keys)
-        d_data = dict(zip(ls_keys, ldf_data))
-
-    na_price = d_data[price].values
-    if normalize:
-        na_price /= na_price[0, :]
-    plt.clf()
-    plt.plot(timestamps, na_price)
-    plt.legend(symbols)
-    plt.ylabel(price.title())
-    plt.xlabel('Date')
-    # plt.savefig('portfolio.chart_series.pdf', format='pdf')
+        if isinstance(market_sym, basestring):
+            market_sym = [market_sym.upper().strip()]
+        reference_prices = da.get_data(timestamps, market_sym, [price])
+        reference_dict = dict(zip(market_sym, reference_prices))
+        for sym in market_sym:
+            series[sym] = pd.Series(reference_dict[sym], index=timestamps)
+    # na_price = reference_dict[price].values
+    # if normalize:
+    #     na_price /= na_price[0, :]
+    series.plot()
+    # plt.clf()
+    # plt.plot(timestamps, na_price)
+    # plt.legend(symbols)
+    # plt.ylabel(price.title())
+    # plt.xlabel('Date')
+    # # plt.savefig('portfolio.chart_series.pdf', format='pdf')
     plt.grid(True)
     plt.show()
-    return na_price
+    return 
 
 
 def portfolio_prices(
@@ -126,9 +130,8 @@ def portfolio_prices(
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
-    c_dataobj = da.DataAccess('Yahoo')
     ls_keys = ['open', 'high', 'low', 'close', 'volume', 'actual_close']
-    ldf_data = c_dataobj.get_data(timestamps, symbols, ls_keys)
+    ldf_data = da.get_data(timestamps, symbols, ls_keys)
     d_data = dict(zip(ls_keys, ldf_data))
 
     na_price = d_data['close'].values
@@ -136,6 +139,59 @@ def portfolio_prices(
         na_price /= na_price[0, :]
     na_price *= allocation
     return np.sum(na_price, axis=1)
+
+COLUMN_SEP = re.compile(r'[,/;]')
+
+def make_dataframe(prices, num_prices=None):
+    """Convert a file, list of strings, or list of tuples into a Pandas DataFrame
+
+    Arguments:
+      num_prices (int): if not null, the number of columns (from right) that contain numeric values
+    """
+    if isinstance(prices, basestring) and os.path.isfile(prices):
+        prices = open(prices, 'rU')
+    if isinstance(prices, file):
+        values = []
+        csvreader = csv.reader(prices, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+        for row in csvreader:
+            print row
+            values += [row[-1]]
+        prices.close()
+        prices = values
+    if isinstance(prices[0], basestring):
+        prices = [COLUMN_SEP.split(row) for row in prices]
+    index = []
+    if isinstance(prices[0][0], (datetime.date, datetime.datetime, datetime.time)):
+        index = [prices[0] for row in prices]
+        for i, row in prices:
+            prices[i] = row[1:]
+    # try to convert all strings to something numerical:
+    elif all(all(isinstance(value, basestring) for value in row) for row in prices):
+        for i, row in enumerate(prices):
+            for j, value in enumerate(row):
+                try:
+                    prices[i][j] = int(prices[i][j])
+                except:
+                    try:
+                        prices[i][j] = float(prices[i][j])
+                    except:
+                        try:
+                            # this is a probably a bit too forceful
+                            prices[i][j] = parse_date(prices[i][j])
+                        except:
+                            pass
+    if not index and isinstance(prices[0], (tuple, list)) and len(prices[0]) > 3:
+        for i, row in enumerate(prices):
+            try:
+                index += [datetime.datetime(*row[:3])]
+                prices[i] = row[3:]
+            except:
+                break
+    # TODO: label the columns somehow (if first row is a bunch of strings/header)
+    if len(index) == len(prices):
+        df = DataFrame(prices, index=index)
+    else:
+        df = DataFrame(prices)
 
 
 def metrics(prices, fudge=False, sharpe_days=252):
@@ -187,9 +243,8 @@ def prices(symbol='$DJI', start=datetime.datetime(2009,2,1), end=datetime.dateti
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
-    c_dataobj = da.DataAccess('Yahoo')
     ls_keys = ['open', 'high', 'low', 'close', 'volume', 'actual_close']
-    ldf_data = c_dataobj.get_data(timestamps, [symbol], ls_keys)
+    ldf_data = da.get_data(timestamps, [symbol], ls_keys)
     d_data = dict(zip(ls_keys, ldf_data))
     na_price = d_data['close'].values
     return na_price[:,0]
