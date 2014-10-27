@@ -7,11 +7,14 @@ import csv
 import math
 import itertools
 import datetime
+import re
 
 from dateutil.parser import parse as parse_date
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+
+from pug import debug
 
 import QSTK.qstkutil.qsdateutil as du
 #import QSTK.qstkutil.tsutil as tsu
@@ -58,7 +61,7 @@ def chart(
     return na_price
 
 
-def chart_series(series, market_sym='$SPX', price='close', normalize=True):
+def chart_series(series, market_sym='$SPX', price='actual_close', normalize=True):
     """Display a graph of the price history for the list of ticker symbols provided
 
 
@@ -78,16 +81,15 @@ def chart_series(series, market_sym='$SPX', price='close', normalize=True):
     series = make_dataframe(series)
     start = series.index[0] or datetime.datetime(2008, 1, 1)
     end = series.index[-1] or datetime.datetime(2009, 12, 28)
- 
-    timeofday = datetime.timedelta(hours=16)
-    timestamps = du.getNYSEdays(start, end, timeofday)
+
+    timestamps = du.getNYSEdays(start, end, datetime.timedelta(hours=16))
     if market_sym:
         if isinstance(market_sym, basestring):
             market_sym = [market_sym.upper().strip()]
-        reference_prices = da.get_data(timestamps, market_sym, [price])
+        reference_prices = da.get_data(timestamps, market_sym, [price])[0]
         reference_dict = dict(zip(market_sym, reference_prices))
-        for sym in market_sym:
-            series[sym] = pd.Series(reference_dict[sym], index=timestamps)
+        for sym, market_data in reference_dict.iteritems():
+            series[sym] = pd.Series(market_data, index=timestamps)
     # na_price = reference_dict[price].values
     # if normalize:
     #     na_price /= na_price[0, :]
@@ -100,7 +102,7 @@ def chart_series(series, market_sym='$SPX', price='close', normalize=True):
     # # plt.savefig('portfolio.chart_series.pdf', format='pdf')
     plt.grid(True)
     plt.show()
-    return 
+    return series
 
 
 def portfolio_prices(
@@ -109,6 +111,7 @@ def portfolio_prices(
     end=datetime.datetime(2011, 12, 31),  # data stops at 2013/1/1
     normalize=True,
     allocation=None, 
+    price_type='actual_close',
     ):
     """Calculate the Sharpe Ratio and other performance metrics for a portfolio
 
@@ -130,11 +133,11 @@ def portfolio_prices(
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
-    ls_keys = ['open', 'high', 'low', 'close', 'volume', 'actual_close']
+    ls_keys = [price_type]
     ldf_data = da.get_data(timestamps, symbols, ls_keys)
     d_data = dict(zip(ls_keys, ldf_data))
 
-    na_price = d_data['close'].values
+    na_price = d_data[price_type].values
     if normalize:
         na_price /= na_price[0, :]
     na_price *= allocation
@@ -142,56 +145,79 @@ def portfolio_prices(
 
 COLUMN_SEP = re.compile(r'[,/;]')
 
-def make_dataframe(prices, num_prices=None):
+def make_dataframe(prices, num_prices=1, columns=('portfolio',)):
     """Convert a file, list of strings, or list of tuples into a Pandas DataFrame
 
     Arguments:
       num_prices (int): if not null, the number of columns (from right) that contain numeric values
     """
+    if isinstance(prices, (pd.DataFrame, pd.Series)):
+        return prices
     if isinstance(prices, basestring) and os.path.isfile(prices):
         prices = open(prices, 'rU')
     if isinstance(prices, file):
         values = []
+        # FIXME: what if it's not a CSV but a TSV or PSV
         csvreader = csv.reader(prices, dialect='excel', quoting=csv.QUOTE_MINIMAL)
         for row in csvreader:
-            print row
-            values += [row[-1]]
+            # print row
+            values += [row]
         prices.close()
         prices = values
     if isinstance(prices[0], basestring):
         prices = [COLUMN_SEP.split(row) for row in prices]
+    # print prices
     index = []
     if isinstance(prices[0][0], (datetime.date, datetime.datetime, datetime.time)):
         index = [prices[0] for row in prices]
         for i, row in prices:
             prices[i] = row[1:]
     # try to convert all strings to something numerical:
-    elif all(all(isinstance(value, basestring) for value in row) for row in prices):
+    elif any(any(isinstance(value, basestring) for value in row) for row in prices):
+        #print '-'*80
         for i, row in enumerate(prices):
+            #print i, row
             for j, value in enumerate(row):
+                s = unicode(value).strip().strip('"').strip("'")
+                #print i, j, s
                 try:
-                    prices[i][j] = int(prices[i][j])
+                    prices[i][j] = int(s)
+                    # print prices[i][j]
                 except:
                     try:
-                        prices[i][j] = float(prices[i][j])
+                        prices[i][j] = float(s)
                     except:
+                        # print 'FAIL'
                         try:
                             # this is a probably a bit too forceful
-                            prices[i][j] = parse_date(prices[i][j])
+                            prices[i][j] = parse_date(s)
                         except:
                             pass
-    if not index and isinstance(prices[0], (tuple, list)) and len(prices[0]) > 3:
-        for i, row in enumerate(prices):
-            try:
-                index += [datetime.datetime(*row[:3])]
-                prices[i] = row[3:]
-            except:
-                break
+    # print prices
+    width = max(len(row) for row in prices)
+    datetime_width = width - num_prices
+    if not index and isinstance(prices[0], (tuple, list)) and num_prices:
+        # print '~'*80
+        new_prices = []
+        try:
+            for i, row in enumerate(prices):
+                # print i, row
+                index += [datetime.datetime(*[int(i) for i in row[:datetime_width]])
+                          + datetime.timedelta(hours=16)]
+                new_prices += [row[datetime_width:]]
+                # print prices[-1]
+        except:
+            for i, row in enumerate(prices):
+                index += [row[0]]
+                new_prices += [row[1:]]
+        prices = new_prices or prices
+    # print index
     # TODO: label the columns somehow (if first row is a bunch of strings/header)
     if len(index) == len(prices):
-        df = DataFrame(prices, index=index)
+        df = pd.DataFrame(prices, index=index, columns=columns)
     else:
-        df = DataFrame(prices)
+        df = pd.DataFrame(prices)
+    return df
 
 
 def metrics(prices, fudge=False, sharpe_days=252):
