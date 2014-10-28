@@ -3,7 +3,7 @@ from __future__ import division, unicode_literals
 """Simulate a sequence of trades and portfolio performance over time
 
 Examples:
-  $ python marketsim.py 1000000 orders.csv values.csv
+  $ python sim.py trade 50000 orders.csv values.csv
 
   # input file
   $ cat orders.csv:
@@ -13,24 +13,29 @@ Examples:
 
   # output file
   $ cat values.csv
-  2008, 12, 3, 1000000
-  2008, 12, 4, 1000010
-  2008, 12, 5, 1000250
+  2008, 12, 3, 50000.25
+  2008, 12, 4, 50010.25
+  2008, 12, 5, 50250.125
 """
-from pug import debug
 import argparse
 import sys
 import csv
 import datetime
 import re
+import math
+import itertools
+import os
+import json
 
 import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
+from dateutil import parser as parse_date
 
 import QSTK.qstkutil.DataAccess as da
 import QSTK.qstkutil.qsdateutil as du
 
-import portfolio as report
+from pug import debug
 
 
 #t = qstk.dateutil.getNYSEdays(datetime.datetime(2010,1,1), datetime.datetime(2010,2,1), datetime.timedelta(hours=16))
@@ -38,7 +43,7 @@ dataobj = da.DataAccess('Yahoo')
 
 DATE_SEP = re.compile(r'[^0-9]')
 
-def get_price(symbol='SPY', date=(2010,1,1), price='actual_close'):
+def get_price(symbol='$SPY', date=(2010,1,1), price='actual_close'):
     # if hasattr(symbol, '__iter__'):
     #     return [get_price(sym, date=date, price=price) for sym in symbol]
     if isinstance(date, basestring):
@@ -49,9 +54,10 @@ def get_price(symbol='SPY', date=(2010,1,1), price='actual_close'):
         date = datetime.datetime(date.year, date.month, date.day, 16)
     symbol = str(symbol).upper().strip()
     if symbol == '$CASH':
-        return 1.
+        return 1.0
     try:
-        return dataobj.get_data([date], [symbol], [price])[0][symbol][0]
+        sym_price = dataobj.get_data([date], [symbol], [price])[0][symbol][0]
+        return sym_price
     except IndexError:
         raise
     except:
@@ -64,12 +70,12 @@ def portfolio_value(portfolio, date):
 
     $CASH used as symbol for USD
     """
-    value = 0.
+    value = 0.0
     for (sym, sym_shares) in portfolio.iteritems():
         sym_price = None
         if sym_shares:
             sym_price = get_price(symbol=sym, date=date, price='actual_close')
-        print sym, sym_shares, sym_price
+        # print sym, sym_shares, sym_price
         # print last_date, k, price
         if sym_price != None:
             if np.isnan(sym_price):
@@ -77,7 +83,8 @@ def portfolio_value(portfolio, date):
                 if sym_shares:
                     return float('nan')
             else:
-                value += float(sym_shares) * float(sym_price)
+                # print ('{0} shares of {1} = {2} * {3} = {4}'.format(sym_shares, sym, sym_shares, sym_price, sym_shares * sym_price))
+                value += sym_shares * sym_price
                 # print 'new price, value = {0}, {1}'.format(sym_price, value)
     return value
 
@@ -88,10 +95,13 @@ def sim(args):
     print vars(args)['funds']
     print args.funds
     portfolio = { '$CASH': args.funds }
+    portfolio_history = []
     print portfolio
     csvreader = csv.reader(args.infile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
     csvwriter = csv.writer(args.outfile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+    detailed = not args.simple
     history = []
+    portfolio_history = []
 
     #trading_days = du.getNYSEdays(datetime.datetime(2010,01,01), datetime.datetime(2012,01,01), datetime.timedelta(hours=16))
     for row in csvreader:
@@ -105,31 +115,34 @@ def sim(args):
             while (trade_date - last_date).days > 0:
                 print 'Filling in the blanks for {0}'.format(last_date)
                 value = portfolio_value(portfolio, last_date)
-                print '   porfolio value on that date is: ' + str(value)
+                print '   the portfolio value on that date is: {0}'.format(value)
                 assert(value != None)
                 # NaN for porfolio value indicates a non-trading day
                 if not np.isnan(value):
-                    history += [[last_date.year, last_date.month, last_date.day, value]]
+                    history += [[last_date.year, last_date.month, last_date.day] + ([json.dumps(portfolio)] if detailed else []) + [value]]
+                    portfolio_history += [datetime.datetime(last_date.year, last_date.month, last_date.day, 16), portfolio]
                     csvwriter.writerow(history[-1])
                 last_date += datetime.timedelta(1)
     
         trade_symbol = row[3]
         trade_shares = float(row[5])
         trade_sign = 1 - 2 * int(row[4].strip().upper()[0]=='S')
-        # print date, symbol, sign * shares
-        portfolio[trade_symbol] = portfolio.get(trade_symbol, 0) + trade_sign * trade_shares
+        # If this the first row in the CSV and the symbol is $CASH then it represents an initial deposit (Sell) or withdrawal (Buy) of cash
+        # otherwise se need to add or deduct whatever security was bought or sold.
+        if not (trade_symbol == '$CASH') or history:
+            portfolio[trade_symbol] = portfolio.get(trade_symbol, 0) + trade_sign * trade_shares
         trade_price = get_price(symbol=trade_symbol, date=trade_date, price='actual_close')
         while trade_price == None or np.isnan(trade_price) or float(trade_price) == float('nan') or float(trade_price) == None:
             trade_date += datetime.timedelta(1)
             trade_price = get_price(symbol=trade_symbol, date=trade_date, price='actual_close')
-        print trade_date, trade_symbol, trade_sign, trade_shares, trade_price
+        #print trade_date, trade_symbol, trade_sign, trade_shares, trade_price
         if trade_price and trade_shares and trade_sign in (-1, 1):
             portfolio['$CASH'] -= trade_sign * trade_shares * trade_price
         else:
             print 'ERROR: bad price, sign, shares: ', trade_price, trade_sign, trade_shares
-        history += [[trade_date.year, trade_date.month, trade_date.day, portfolio_value(portfolio, trade_date)]]
+        history += [[trade_date.year, trade_date.month, trade_date.day] + ([json.dumps(portfolio)] if detailed else []) + [portfolio_value(portfolio, trade_date)]]
         csvwriter.writerow(history[-1])
-    print report.metrics(history)
+    return metrics(history)
 
 def chart(
     symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
@@ -328,7 +341,7 @@ def make_dataframe(prices, num_prices=1, columns=('portfolio',)):
     return df
 
 
-def metrics(prices, fudge=False, sharpe_days=252):
+def metrics(prices, fudge=False, sharpe_days=252.):
     """Calculate the volatiliy, average daily return, Sharpe ratio, and cumulative return
 
     Arguments:
@@ -349,7 +362,7 @@ def metrics(prices, fudge=False, sharpe_days=252):
         values = []
         csvreader = csv.reader(prices, dialect='excel', quoting=csv.QUOTE_MINIMAL)
         for row in csvreader:
-            print row
+            # print row
             values += [row[-1]]
         prices.close()
         prices = values
@@ -358,18 +371,21 @@ def metrics(prices, fudge=False, sharpe_days=252):
     if sharpe_days == None:
         sharpe_days = len(prices)
     prices = np.array([float(p) for p in prices])
-    if isinstance(fudge, (float, int)):
+    if not isinstance(fudge, bool) and fudge:
         fudge = float(fudge)
-    elif fudge == True:
+    elif fudge == True or (isinstance(fudge, float) and fudge == 0.0):
         fudge = (len(prices) - 1.) / len(prices)
     else:
-        fudge = 1.
+        fudge = 1.0
     daily_returns = np.diff(prices) / prices[0:-1]
+    # print daily_returns
     mean = fudge * np.average(daily_returns)
-    variance = fudge * np.sum((daily_returns - mean) * (daily_returns - mean)) / len(daily_returns)
-    return {'std': math.sqrt(variance), 'mean': mean, 
-            'sharpe': mean * np.sqrt(sharpe_days) / np.sqrt(variance), 
-            'return': (prices[-1] - prices[0]) / prices[0] + 1.}
+    variance = fudge * np.sum((daily_returns - mean) * (daily_returns - mean)) / float(len(daily_returns))
+    return {'std': math.sqrt(variance), 
+            'var': variance, 
+            'mean': mean, 
+            'Sharpe': mean * np.sqrt(sharpe_days) / np.sqrt(variance), 
+            'return': prices[-1] / float(prices[0]) - 1}
 
 
 def prices(symbol='$DJI', start=datetime.datetime(2009,2,1), end=datetime.datetime(2012,7,31)):
@@ -421,8 +437,10 @@ def optimize_allocation(symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM"),
 
 
 def analyze(args):
-    print 'Report for {0}'.format(args.infile)
-    print report.metrics(args.infile)
+    print 'Report for {0}...'.format(args.infile)
+    report = metrics(args.infile, fudge=args.fudge, sharpe_days=args.sharpe_days)
+    print report
+    return report
 
 
 def build_args_parser(parser=None):
@@ -434,16 +452,12 @@ def build_args_parser(parser=None):
                         help='Name of financial data source to use in da.DataAccess("Name")')
 
     subparsers = parser.add_subparsers(help='`sim trade` help')
-    print '?'*10 + 'subparser: '
-    print subparsers
-    print dir(parser)
-    print parser.__dict__
 
     # create the parser for the "trade" command
     parser_trade = subparsers.add_parser('trade', help='Simulate a sequence of trades')
     parser_trade.add_argument('funds', type=float,
                               nargs='?',
-                              default=1000000.,
+                              default=50000.0,
                               help='Initial funds (cash, USD) in portfolio.')
     parser_trade.add_argument('infile', nargs='?', type=argparse.FileType('rU'),
                               help='Path to input CSV file containing a list of trades: y,m,d,sym,BUY/SELL,shares',
@@ -451,6 +465,10 @@ def build_args_parser(parser=None):
     parser_trade.add_argument('outfile', nargs='?', type=argparse.FileType('w'),
                               help='Path to output CSV file where a time series of dates and portfolio values will be written',
                               default=sys.stdout)
+    parser_trade.add_argument('--detailed', action='store_true',
+                              help='Whether to output a json string containing the portfolio allocation as the 2nd-to-last CSV column')
+    parser_trade.add_argument('--simple', action='store_true',
+                              help='Whether to supress output of a json string containing the portfolio allocation as the 2nd-to-last CSV column')
     parser_trade.set_defaults(func=sim)
 
     # create the parser for the "analyze" command
@@ -458,6 +476,10 @@ def build_args_parser(parser=None):
     parser_analyze.add_argument('infile', nargs='?', type=argparse.FileType('rU'),
                               help='Path to input CSV file containing sequence of prices (portfolio values) in the last column. Typically each line should be a (yr, mo, dy, price) CSV string for each trading day in the sequence',
                               default=sys.stdin)
+    parser_analyze.add_argument('--fudge', type=float, default=False,
+                              help="Value to multiply the total return by to make it match Tucker Balche's incorrect math")
+    parser_analyze.add_argument('--sharpe_days', type=float, default=252.0,
+                              help="Value to multiple the daily average return by to get the yearly return for Sharpe ratio calculation.")
     parser_analyze.set_defaults(func=analyze)
 
     # print sys.argv
@@ -473,12 +495,6 @@ def build_args_parser(parser=None):
     # args.func(args1)
     # print dir(args1)
 
-    print '!'*10 + 'subparser: '
-    print subparsers
-    print '!'*10 + 'dir(parser): '
-    print dir(parser)
-    print '!'*10 + 'parser.__dict: '
-    print parser.__dict__
     return parser
 
 
