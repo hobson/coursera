@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 '''Finds events in time-series data and plots statistics about following and preceding events'''
 from __future__ import unicode_literals
+from __future__ import division
 
 import sys
 import os
