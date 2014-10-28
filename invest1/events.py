@@ -159,7 +159,7 @@ def generate_orders(events, sell_delay=5, sep=','):
     Returns:
        generator of str: yielded CSV rows in the format (yr, mo, day, symbol, Buy/Sell, shares)
     """
-    sell_delay = float(unicode(sell_delay))
+    sell_delay = float(unicode(sell_delay)) or 1
     for i, (t, row) in enumerate(events.iterrows()):
         for sym, event in row.to_dict().iteritems():
             # print sym, event, type(event)
@@ -179,6 +179,7 @@ def generate_orders(events, sell_delay=5, sep=','):
                 if isinstance(sep, basestring):
                     yield sep.join(order)
                 yield order
+
 
 
 def buy_on_drop(args, symbol_set=None, 
