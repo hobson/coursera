@@ -37,7 +37,7 @@ def event_happened(**kwargs):
 def drop_below(threshold=5, **kwargs):
     """Trigger function that returns True if the price falls below the threshold
 
-    price_today < threshold and price_yesterday >= threshold
+    price_today < threshold and price_yest >= threshold
     """
     if (
     #    kwargs['price_today'] and kwargs['price_yest'] and
@@ -49,7 +49,7 @@ def drop_below(threshold=5, **kwargs):
         return False
 
 
-@memoize
+@memoizefrom pug.decorators import memoize
 def find_events(symbols, d_data, market_sym='$SPX', trigger=drop_below, trigger_kwargs={}):
     '''Return dataframe of 1's (event happened) and NaNs (no event), 1 column for each symbol'''
 
@@ -95,7 +95,7 @@ def get_clean_data(symbols=None,
     start = start or dt.datetime(2008, 1, 1)
     end = end or dt.datetime(2009, 12, 31)
     if not symbols:
-        symbols = dataobj.get_symbols_from_list("sp5002008")
+        symbols = dataobj.get_symbols_from_list("sp5002012")
         symbols.append(market_sym)
 
 
@@ -182,12 +182,12 @@ def generate_orders(events, sell_delay=5, sep=','):
 
 
 
-def buy_on_drop(args, symbol_set=None, 
+def buy_on_drop(args=None, symbol_set=None, 
             dataobj=tucker, 
             start=dt.datetime(2008, 1, 3), 
             end=dt.datetime(2009, 12, 28),
             market_sym='$SPX',
-            threshold=5,
+            threshold=6,
             yr=2012,
             sell_delay=5,
             ):
@@ -196,13 +196,13 @@ def buy_on_drop(args, symbol_set=None,
         symbol_set = dataobj.get_symbols_from_list("sp500{0}".format(yr))
         symbol_set.append(market_sym)
 
-    print "Starting Event Study, retrieving data..."
+    print "Starting Event Study, retrieving data for S&P 500 symbol list for the year {0}...".format(yr)
     market_data = get_clean_data(symbol_set, dataobj=dataobj, start=start, end=end)
     print "Finding events for {0} symbols in SP500-{1}...".format(len(symbol_set), yr)
     trigger_kwargs={'threshold': threshold}
     events = find_events(symbol_set, market_data,  market_sym=market_sym, trigger=drop_below, trigger_kwargs=trigger_kwargs)
 
-    csvwriter = csv.writer(args.outfile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+    csvwriter = csv.writer(getattr(args, 'outfile', open('buy_on_drop_outfile.csv', 'w')), dialect='excel', quoting=csv.QUOTE_MINIMAL)
     for order in generate_orders(events, sell_delay=sell_delay, sep=None):
         csvwriter.writerow(order)
 
