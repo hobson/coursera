@@ -49,7 +49,7 @@ def drop_below(threshold=5, **kwargs):
         return False
 
 
-@memoizefrom pug.decorators import memoize
+@memoize
 def find_events(symbols, d_data, market_sym='$SPX', trigger=drop_below, trigger_kwargs={}):
     '''Return dataframe of 1's (event happened) and NaNs (no event), 1 column for each symbol'''
 

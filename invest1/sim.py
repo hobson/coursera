@@ -31,7 +31,7 @@ import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from dateutil import parser as parse_date
+from dateutil.parser import parse as parse_date
 
 import QSTK.qstkutil.DataAccess as da
 import QSTK.qstkutil.qsdateutil as du
@@ -39,6 +39,7 @@ import QSTK.qstkstudy.EventProfiler as ep
 
 from pug import debug
 from pug.decorators import memoize
+
 
 
 #t = qstk.dateutil.getNYSEdays(datetime.datetime(2010,1,1), datetime.datetime(2010,2,1), datetime.timedelta(hours=16))
@@ -386,13 +387,21 @@ def metrics(prices, fudge=False, sharpe_days=252., baseline='$SPX'):
         fudge = 1.0
     daily_returns = np.diff(prices) / prices[0:-1]
     # print daily_returns
+    end_price = float(prices[-1])
+    start_price = (prices[0])
     mean = fudge * np.average(daily_returns)
     variance = fudge * np.sum((daily_returns - mean) * (daily_returns - mean)) / float(len(daily_returns))
-    return {'std': math.sqrt(variance), 
-            'var': variance, 
-            'mean': mean, 
-            'Sharpe': mean * np.sqrt(sharpe_days) / np.sqrt(variance), 
-            'return': prices[-1] / float(prices[0]) - 1}
+    results = {
+        'standared deviation of daily returns': math.sqrt(variance), 
+        'variance of daily returns': variance, 
+        'average daily return': mean, 
+        'Sharpe ratio': mean * np.sqrt(sharpe_days) / np.sqrt(variance), 
+        'total return': end_price / start_price,
+        'final value': end_price,
+        'starting value': start_price, 
+        }
+    results['return rate'] = results['total return'] - 1.0
+    return results
 
 
 def prices(symbol='$DJI', start=datetime.datetime(2009,2,1), end=datetime.datetime(2012,7,31)):
@@ -618,7 +627,7 @@ def buy_on_drop(symbol_set="sp5002012",
     print "Creating Study report for {0} events...".format(len(events))
     ep.eventprofiler(events, market_data, 
                          i_lookback=20, i_lookforward=20,
-                         s_filename='Event report--buy on drop below {0} for {2} symbols.pdf'.format(threshold, len(symbol_set)),
+                         s_filename='Event report--buy on drop below {0} for {1} symbols.pdf'.format(threshold, len(symbol_set)),
                          b_market_neutral=True,
                          b_errorbars=True,
                          s_market_sym=market_sym,
@@ -683,6 +692,10 @@ def build_args_parser(parser=None):
                               help="Which price to trigger on (close, actual_close, volume)")
     parser_event.add_argument('--threshold', type=float, default=5.0,
                               help="Buy equities whenever they fall below this actual_close price")
+    parser_event.add_argument('--start', type=parse_date, default='2008-01-01',
+                              help="Start of time period to perform event study.")
+    parser_event.add_argument('--end', type=parse_date, default='2009-12-31',
+                              help="End of time period to perform event study.")
     parser_event.add_argument('--delay', type=float, default=5,
                               help="Number of days to hold the stock before selling it.")
     parser_event.add_argument('--symbols', type=str, default="sp5002012",
@@ -690,7 +703,6 @@ def build_args_parser(parser=None):
     parser_event.add_argument('--baseline', type=str, default="$SPX",
                               help="Which stocks to search for events for (sp5002012, sp5002008, all, ...).")
     parser_event.set_defaults(func=event)
-    return parser.parse_args()
 
     # print sys.argv
     # #args = parser.parse_args()
