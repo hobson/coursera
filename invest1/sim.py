@@ -233,6 +233,41 @@ def chart_series(series, market_sym='$SPX', price='actual_close', normalize=True
     return series
 
 
+def normalize_symbols(symbols, *args):
+    """Return a list of uppercase strings like "GOOG", "$SPX, "XOM"...
+
+    Arguments:
+      symbols (str or list of str): list of market ticker symbols to normalize
+        If `symbols` is a str a get_symbols_from_list() call is used to retrieve the list of symbols
+
+    Returns:
+      list of str: list of cananical ticker symbol strings (typically after .upper().strip())
+
+    Examples:
+      >>> normalize_symbols("Goog")
+      ["GOOG"]
+      >>> normalize_symbols("$SPX", "AAPL")
+    """
+    if not normalize_symbols or not any(normalize_symbols):
+        return []
+    if isinstance(symbols, basestring):
+        # get_symbols_from_list seems robust to string normalizaiton like .upper()
+        try:
+            symbols = dataobj.get_symbols_from_list(symbols)
+        except:
+            symbols = [symbols.upper().strip()]
+    else:
+        symbols = [s.upper().strip() for s in symbols]
+    # FIXME: determine if strings being appended are the names of a list that can be passed to get_symbols_from_list()
+    if args:
+        for arg in args():
+            if isinstance(arg, basestring):
+                symbols += [arg]
+            else:
+                symbols += list(arg)
+    return symbols
+
+
 def portfolio_prices(
     symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
     start=datetime.datetime(2005, 1, 1),
@@ -250,6 +285,7 @@ def portfolio_prices(
       normalize (bool): Whether to normalize prices to 1 at the start of the time series.
       allocation (list of float): The portion of the portfolio allocated to each equity.
     """    
+    symbols = normalize_symbols(symbols)
     if allocation is None:
         allocation = [1. / len(symbols)] * len(symbols)
     if len(allocation) < len(symbols):
@@ -257,7 +293,6 @@ def portfolio_prices(
     total = sum(allocation)
     allocation = np.array([(float(a) / total) for a in allocation])
 
-    symbols = [s.upper() for s in symbols]
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
 
@@ -573,9 +608,8 @@ def get_clean_data(symbols=None,
                    reset_cache=True):
     start = start or datetime.datetime(2008, 1, 1)
     end = end or datetime.datetime(2009, 12, 31)
-    if not symbols:
-        symbols = dataobj.get_symbols_from_list("sp5002012")
-        symbols.append(market_sym)
+    symbols = normalize_symbols(symbols)
+    symbols += [market_sym]
 
 
     print "Calculating timestamps for {0} SP500 symbols".format(len(symbols))
@@ -636,6 +670,12 @@ def buy_on_drop(symbol_set="sp5002012",
 
 ## Event Studies
 ##############################################
+
+
+def prices_dataframe(start, end, period=datetime.timedelta(days=1), symbols='sp5002012', time=datetime.timedelta(hours=16), type='trading'):
+    
+    symbols = symbols or dataobj.get_symbols_from_list("sp5002012")
+
 
 
 def build_args_parser(parser=None):
@@ -704,18 +744,6 @@ def build_args_parser(parser=None):
                               help="Which stocks to search for events for (sp5002012, sp5002008, all, ...).")
     parser_event.set_defaults(func=event)
 
-    # print sys.argv
-    # #args = parser.parse_args()
-    # argsv1 = ' '.join(sys.argv[1:]).split()
-    # print argsv1
-    # argsv2 = ' '.join('analyze 1 -x 2'.split()).split()
-    # print argsv2
-    # args2 = parser.parse_args(argsv2)
-    # args.func(args2)
-    # print dir(args2)
-    # args1 = parser.parse_args(argsv1)
-    # args.func(args1)
-    # print dir(args1)
 
     return parser
 
