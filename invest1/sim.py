@@ -306,16 +306,11 @@ def series_bolinger_bands(series, window=20, sigma=1., plot=False):
     return bolinger_values
 
 
-def frame_bolinger_bands(series, window=20, sigma=1., plot=False):
-    mean = pd.rolling_mean(series, window=window)
-    std = pd.rolling_std(series, window=window)
-    df = pd.DataFrame({'value': series, 'mean': mean, 'upper': mean + sigma * std, 'lower': mean - sigma * std})
-    bolinger_values = (series - pd.rolling_mean(series, window=window)) / (pd.rolling_std(series, window=window))
-    if plot:
-        df.plot()
-        pd.DataFrame({'bolinger': bolinger_values}).plot()
-        plt.show()
-    return bolinger_values
+def frame_bolinger_bands(df, window=20, sigma=1., plot=False):
+    bol = pd.DataFrame()
+    for col in df.columns:
+        bol[col] = series_bolinger_bands(df[col], plot=False)
+    return bol
 
 
 def symbol_bolinger(symbol='GOOG',
