@@ -38,7 +38,7 @@ import QSTK.qstkutil.qsdateutil as du
 import QSTK.qstkstudy.EventProfiler as ep
 
 from pug import debug
-from pug.decorators import memoize
+# from pug.decorators import memoize
 
 
 
@@ -246,26 +246,119 @@ def normalize_symbols(symbols, *args):
     Examples:
       >>> normalize_symbols("Goog")
       ["GOOG"]
-      >>> normalize_symbols("$SPX", "AAPL")
+      >>> normalize_symbols("  $SPX   ", " aaPL ")
+      ["$SPX", "AAPL"]
+      >>> normalize_symbols(["$SPX", ["GOOG", "AAPL"]])
     """
-    if not normalize_symbols or not any(normalize_symbols):
+    if not symbols or (not isinstance(symbols, basestring) and not any(symbols)):
         return []
     if isinstance(symbols, basestring):
         # get_symbols_from_list seems robust to string normalizaiton like .upper()
         try:
-            symbols = dataobj.get_symbols_from_list(symbols)
+            return list(set(dataobj.get_symbols_from_list(symbols)))
         except:
-            symbols = [symbols.upper().strip()]
+            return [symbols.upper().strip()]
     else:
-        symbols = [s.upper().strip() for s in symbols]
-    # FIXME: determine if strings being appended are the names of a list that can be passed to get_symbols_from_list()
-    if args:
-        for arg in args():
-            if isinstance(arg, basestring):
-                symbols += [arg]
-            else:
-                symbols += list(arg)
-    return symbols
+        ans = []
+        for sym in (list(symbols) + list(args)):
+            tmp = normalize_symbols(sym)
+            ans = ans + tmp
+        return list(set(ans))
+
+
+def clean_dataframe(df):
+    """Fill NaNs with the previous value, the next value or if all are NaN then 1.0"""
+    df = df.fillna(method='ffill')
+    df = df.fillna(method='bfill')
+    df = df.fillna(1.0)
+    return df
+
+
+def clean_dataframes(dfs):
+    """Fill NaNs with the previous value, the next value or if all are NaN then 1.0
+
+    TODO: 
+      Linear interpolation and extrapolation
+
+    Arguments:
+      dfs (list of dataframes): list of dataframes that contain NaNs to be removed
+
+    Returns:
+      list of dataframes: list of dataframes with NaNs replaced by interpolated values
+    """
+    if isinstance(dfs, (list)):
+        for df in dfs:
+            df = clean_dataframe(df)
+        return dfs
+    else:
+        return [clean_dataframe(dfs)]
+
+
+def series_bolinger_bands(series, window=20, sigma=1., plot=False):
+    mean = pd.rolling_mean(series, window=window)
+    std = pd.rolling_std(series, window=window)
+    df = pd.DataFrame({'value': series, 'mean': mean, 'upper': mean + sigma * std, 'lower': mean - sigma * std})
+    bolinger_values = (series - pd.rolling_mean(series, window=window)) / (pd.rolling_std(series, window=window))
+    if plot:
+        df.plot()
+        pd.DataFrame({'bolinger': bolinger_values}).plot()
+        plt.show()
+    return bolinger_values
+
+
+def frame_bolinger_bands(series, window=20, sigma=1., plot=False):
+    mean = pd.rolling_mean(series, window=window)
+    std = pd.rolling_std(series, window=window)
+    df = pd.DataFrame({'value': series, 'mean': mean, 'upper': mean + sigma * std, 'lower': mean - sigma * std})
+    bolinger_values = (series - pd.rolling_mean(series, window=window)) / (pd.rolling_std(series, window=window))
+    if plot:
+        df.plot()
+        pd.DataFrame({'bolinger': bolinger_values}).plot()
+        plt.show()
+    return bolinger_values
+
+
+def symbol_bolinger(symbol='GOOG',
+    start=datetime.datetime(2008, 1, 1), end=datetime.datetime(2009, 12, 31), price_type='close', cleaner=clean_dataframe,
+    window=20, sigma=1.):
+    symbols = normalize_symbols(symbol)
+    prices = price_dataframe(symbols, start=start, end=end, price_type=price_type, cleaner=cleaner)
+    print prices
+    return series_bolinger_bands(prices[symbols[0]], window=window, sigma=sigma, plot=False)
+
+
+def symbols_bolinger(symbols='sp5002012',
+    start=datetime.datetime(2008, 1, 1), end=datetime.datetime(2009, 12, 31), price_type='close', cleaner=clean_dataframe,
+    window=20, sigma=1.):
+    symbols = normalize_symbols(symbols)
+    prices = price_dataframe(symbols, start=start, end=end, price_type=price_type, cleaner=cleaner)
+    print prices
+    return series_bolinger_bands(prices, window=window, sigma=sigma, plot=False)
+
+def price_dataframe(symbols='sp5002012',
+    start=datetime.datetime(2008, 1, 1),
+    end=datetime.datetime(2009, 12, 31),  
+    price_type='actual_close',
+    cleaner=clean_dataframe,
+    ):
+    """Calculate the Sharpe Ratio and other performance metrics for a portfolio
+
+    Arguments:
+      symbols (list of str): Ticker symbols like "GOOG", "AAPL", etc
+        e.g. ["AAPL", " slv ", GLD", "GOOG", "$SPX", "XOM", "msft"]
+      start (datetime): The date at the start of the period being analyzed.
+      end (datetime): The date at the end of the period being analyzed.
+        Yahoo data stops at 2013/1/1
+    """
+    if isinstance(price_type, basestring):
+        price_type = [price_type]
+    symbols = normalize_symbols(symbols)
+    t = du.getNYSEdays(start, end, datetime.timedelta(hours=16))
+    df = clean_dataframes(dataobj.get_data(t, symbols, price_type))
+    if not df or len(df) > 1:
+        return cleaner(df)
+    else:
+        return cleaner(df[0])
 
 
 def portfolio_prices(
@@ -565,7 +658,29 @@ def generate_orders(events, sell_delay=5, sep=','):
                     yield sep.join(order)
                 yield order
 
-@memoize
+
+def event_dataframe(df, trigger, **trigger_kwargs):
+
+    for col in columns:
+        if s_sym == market_sym:
+            continue
+        for i in range(1, len(ldt_timestamps)):
+            # Calculating the returns for this timestamp
+            kwargs = dict(trigger_kwargs)
+            kwargs['price_today'] = df_close[s_sym].ix[ldt_timestamps[i]]
+            kwargs['price_yest'] = df_close[s_sym].ix[ldt_timestamps[i - 1]]
+            kwargs['return_today'] = (kwargs['price_today'] / (kwargs['price_yest'] or 1.)) - 1
+            kwargs['market_price_today'] = ts_market.ix[ldt_timestamps[i]]
+            kwargs['market_price_yest'] = ts_market.ix[ldt_timestamps[i - 1]]
+            kwargs['market_return_today'] = (kwargs['market_price_today'] / (kwargs['market_price_yest'] or 1.)) - 1
+
+            if trigger(**kwargs):
+                df_events[s_sym].ix[ldt_timestamps[i]] = 1
+    print 'Found {0} events where priced dropped below {1}.'.format(df_events.sum(axis=1).sum(axis=0), trigger_kwargs['threshold'])
+    return df_events
+
+
+
 def find_events(symbols, d_data, market_sym='$SPX', trigger=drop_below, trigger_kwargs={}):
     '''Return dataframe of 1's (event happened) and NaNs (no event), 1 column for each symbol'''
 
@@ -670,11 +785,6 @@ def buy_on_drop(symbol_set="sp5002012",
 
 ## Event Studies
 ##############################################
-
-
-def prices_dataframe(start, end, period=datetime.timedelta(days=1), symbols='sp5002012', time=datetime.timedelta(hours=16), type='trading'):
-    
-    symbols = symbols or dataobj.get_symbols_from_list("sp5002012")
 
 
 
