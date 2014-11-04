@@ -330,6 +330,7 @@ def symbols_bolinger(symbols='sp5002012',
     print prices
     return series_bolinger_bands(prices, window=window, sigma=sigma, plot=False)
 
+
 def price_dataframe(symbols='sp5002012',
     start=datetime.datetime(2008, 1, 1),
     end=datetime.datetime(2009, 12, 31),  
