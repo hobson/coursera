@@ -38,6 +38,7 @@ import QSTK.qstkutil.qsdateutil as du
 import QSTK.qstkstudy.EventProfiler as ep
 
 from pug import debug
+from pug.nlp import util
 # from pug.decorators import memoize
 
 
@@ -93,68 +94,13 @@ def portfolio_value(portfolio, date, price='close'):
                 # print 'new price, value = {0}, {1}'.format(sym_price, value)
     return value
 
-
-def trade(args):
-    """Simulate a sequence of trades indicated in `infile` and write the portfolio value time series to `outfile`"""
-    print args
-    print vars(args)['funds']
-    print args.funds
-    portfolio = { '$CASH': args.funds }
-    print portfolio
-    csvreader = csv.reader(args.infile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
-    csvwriter = csv.writer(args.outfile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
-    detailed = not args.simple
-    history = []
-    portfolio_history = []
-
-    #trading_days = du.getNYSEdays(datetime.datetime(2010,01,01), datetime.datetime(2012,01,01), datetime.timedelta(hours=16))
-    for row in csvreader:
-        print '-'*30 + ' CSV Row ' + '-'*30
-        print ', '.join(row)
-        trade_date = datetime.datetime(*[int(i) for i in (row[:3] + [16])])
-
-        if history:
-            last_date = datetime.datetime(*(history[-1][:3] + [16])) + datetime.timedelta(days=1)
-            # print (date.date() - last_date).days
-            while (trade_date - last_date).days > 0:
-                print 'Filling in the blanks for {0}'.format(last_date)
-                value = portfolio_value(portfolio, last_date, price='close')
-                print '   the portfolio value on that date is: {0}'.format(value)
-                assert(value != None)
-                # NaN for porfolio value indicates a non-trading day
-                if not np.isnan(value):
-                    history += [[last_date.year, last_date.month, last_date.day] 
-                                + (["$CASH", "0.0", "0.0"] if args.trades else [])
-                                + ([json.dumps(portfolio)] if detailed else []) + [value]]
-                    portfolio_history += [datetime.datetime(last_date.year, last_date.month, last_date.day, 16), portfolio]
-                    csvwriter.writerow(history[-1])
-                last_date += datetime.timedelta(days=1)
-    
-        trade_symbol = row[3]
-        trade_shares = float(row[5])
-        trade_sign = 1 - 2 * int(row[4].strip().upper()[0]=='S')
-        # If this the first row in the CSV and the symbol is $CASH then it represents an initial deposit (Sell) or withdrawal (Buy) of cash
-        # otherwise se need to add or deduct whatever security was bought or sold.
-        # if not (trade_symbol == '$CASH') or history:
-        portfolio[trade_symbol] = portfolio.get(trade_symbol, 0) + trade_sign * trade_shares
-        trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
-        while trade_price == None or np.isnan(trade_price) or float(trade_price) == float('nan'):
-            trade_date += datetime.timedelta(days=1)
-            trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
-        #print trade_date, trade_symbol, trade_sign, trade_shares, trade_price
-        if trade_price and trade_shares and trade_sign in (-1, 1):
-            print 'spending cash: {0}'.format(trade_sign * trade_shares * trade_price)
-            portfolio['$CASH'] = portfolio.get('$CASH',0.) - trade_sign * trade_shares * trade_price
-        else:
-            print 'ERROR: bad price, sign, shares: ', trade_price, trade_sign, trade_shares
-        history += [[trade_date.year, trade_date.month, trade_date.day, trade_symbol, trade_sign, trade_shares] + ([json.dumps(portfolio)] if detailed else []) + [portfolio_value(portfolio, trade_date, price='close')]]
-        csvwriter.writerow(history[-1])
-    return metrics(history)
+################################################
+# General ticker symbol pricing and charting
 
 def chart(
     symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM", "msft"),
-    start=datetime.datetime(2005, 1, 1),
-    end=datetime.datetime(2014, 10, 31),  # data stops at 2013/1/1
+    start=datetime.datetime(2008, 1, 1),
+    end=datetime.datetime(2009, 12, 31),  # data stops at 2013/1/1
     normalize=True,
     ):
     """Display a graph of the price history for the list of ticker symbols provided
@@ -167,6 +113,8 @@ def chart(
       normalize (bool): Whether to normalize prices to 1 at the start of the time series.
     """
 
+    start = util.normalize_date(start or datetime.date(2008, 1, 1))
+    end = util.normalize_date(end or datetime.date(2009, 12, 31))
     symbols = [s.upper() for s in symbols]
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
@@ -200,17 +148,17 @@ def chart_series(series, market_sym='$SPX', price='actual_close', normalize=True
         list of str: 1st 3 comma or slash-separated integers are the year, month, day
           others are float y-axis values
         list of tuples: 1st 3 integers are year, month, day 
-          otehrs are float y-axis values
+          others are float y-axis values
       market_sym (str): ticker symbol of equity or comodity to plot along side the series
       price (str): which market data value ('close', 'actual_close', 'volume', etc) to use 
          for the market symbol for comparison to the series 
       normalize (bool): Whether to normalize prices to 1 at the start of the time series.
     """
-    series = make_dataframe(series)
-    start = series.index[0] or datetime.datetime(2008, 1, 1)
-    end = series.index[-1] or datetime.datetime(2009, 12, 28)
-
+    series = util.make_dataframe(series)
+    start = util.normalize_date(series.index[0] or datetime.datetime(2008, 1, 1))
+    end = util.normalize_date(series.index[-1] or datetime.datetime(2009, 12, 28))
     timestamps = du.getNYSEdays(start, end, datetime.timedelta(hours=16))
+
     if market_sym:
         if isinstance(market_sym, basestring):
             market_sym = [market_sym.upper().strip()]
@@ -294,43 +242,6 @@ def clean_dataframes(dfs):
         return [clean_dataframe(dfs)]
 
 
-def series_bolinger_bands(series, window=20, sigma=1., plot=False):
-    mean = pd.rolling_mean(series, window=window)
-    std = pd.rolling_std(series, window=window)
-    df = pd.DataFrame({'value': series, 'mean': mean, 'upper': mean + sigma * std, 'lower': mean - sigma * std})
-    bolinger_values = (series - pd.rolling_mean(series, window=window)) / (pd.rolling_std(series, window=window))
-    if plot:
-        df.plot()
-        pd.DataFrame({'bolinger': bolinger_values}).plot()
-        plt.show()
-    return bolinger_values
-
-
-def frame_bolinger_bands(df, window=20, sigma=1., plot=False):
-    bol = pd.DataFrame()
-    for col in df.columns:
-        bol[col] = series_bolinger_bands(df[col], plot=False)
-    return bol
-
-
-def symbol_bolinger(symbol='GOOG',
-    start=datetime.datetime(2008, 1, 1), end=datetime.datetime(2009, 12, 31), price_type='close', cleaner=clean_dataframe,
-    window=20, sigma=1.):
-    symbols = normalize_symbols(symbol)
-    prices = price_dataframe(symbols, start=start, end=end, price_type=price_type, cleaner=cleaner)
-    print prices
-    return series_bolinger_bands(prices[symbols[0]], window=window, sigma=sigma, plot=False)
-
-
-def symbols_bolinger(symbols='sp5002012',
-    start=datetime.datetime(2008, 1, 1), end=datetime.datetime(2009, 12, 31), price_type='close', cleaner=clean_dataframe,
-    window=20, sigma=1.):
-    symbols = normalize_symbols(symbols)
-    prices = price_dataframe(symbols, start=start, end=end, price_type=price_type, cleaner=cleaner)
-    print prices
-    return series_bolinger_bands(prices, window=window, sigma=sigma, plot=False)
-
-
 def price_dataframe(symbols='sp5002012',
     start=datetime.datetime(2008, 1, 1),
     end=datetime.datetime(2009, 12, 31),  
@@ -348,6 +259,8 @@ def price_dataframe(symbols='sp5002012',
     """
     if isinstance(price_type, basestring):
         price_type = [price_type]
+    start = util.normalize_date(start or datetime.date(2008, 1, 1))
+    end = util.normalize_date(end or datetime.date(2009, 12, 31))
     symbols = normalize_symbols(symbols)
     t = du.getNYSEdays(start, end, datetime.timedelta(hours=16))
     df = clean_dataframes(dataobj.get_data(t, symbols, price_type))
@@ -375,6 +288,8 @@ def portfolio_prices(
       allocation (list of float): The portion of the portfolio allocated to each equity.
     """    
     symbols = normalize_symbols(symbols)
+    start = util.normalize_date(start)
+    end = util.normalize_date(end)
     if allocation is None:
         allocation = [1. / len(symbols)] * len(symbols)
     if len(allocation) < len(symbols):
@@ -382,8 +297,7 @@ def portfolio_prices(
     total = sum(allocation)
     allocation = np.array([(float(a) / total) for a in allocation])
 
-    timeofday = datetime.timedelta(hours=16)
-    timestamps = du.getNYSEdays(start, end, timeofday)
+    timestamps = du.getNYSEdays(start, end, datetime.timedelta(hours=16))
 
     ls_keys = [price_type]
     ldf_data = da.get_data(timestamps, symbols, ls_keys)
@@ -395,82 +309,85 @@ def portfolio_prices(
     na_price *= allocation
     return np.sum(na_price, axis=1)
 
-COLUMN_SEP = re.compile(r'[,/;]')
+# General ticker symbol pricing and charting
+###################################################################
 
-def make_dataframe(prices, num_prices=1, columns=('portfolio',)):
-    """Convert a file, list of strings, or list of tuples into a Pandas DataFrame
 
-    Arguments:
-      num_prices (int): if not null, the number of columns (from right) that contain numeric values
+################################################
+# Bolinger band charts and indicator values
+
+def series_bollinger(series, window=20, sigma=1., plot=False):
+    mean = pd.rolling_mean(series, window=window)
+    std = pd.rolling_std(series, window=window)
+    df = pd.DataFrame({'value': series, 'mean': mean, 'upper': mean + sigma * std, 'lower': mean - sigma * std})
+    bollinger_values = (series - pd.rolling_mean(series, window=window)) / (pd.rolling_std(series, window=window))
+    if plot:
+        df.plot()
+        pd.DataFrame({'bollinger': bollinger_values}).plot()
+        plt.show()
+    return bollinger_values
+
+
+def frame_bollinger(df, window=20, sigma=1., plot=False):
+    bol = pd.DataFrame()
+    for col in df.columns:
+        bol[col] = series_bollinger(df[col], plot=False)
+    return bol
+
+
+def symbol_bollinger(symbol='GOOG',
+    start=datetime.datetime(2008, 1, 1), end=datetime.datetime(2009, 12, 31), price_type='close', cleaner=clean_dataframe,
+    window=20, sigma=1.):
+    """Calculate the Bolinger indicator value
+
+    >>> symbol_bollinger("goog", '2008-1-1', '2008-2-1')[-1]  # doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+    -1.8782...
     """
-    if isinstance(prices, (pd.DataFrame, pd.Series)):
-        return prices
-    if isinstance(prices, basestring) and os.path.isfile(prices):
-        prices = open(prices, 'rU')
-    if isinstance(prices, file):
-        values = []
-        # FIXME: what if it's not a CSV but a TSV or PSV
-        csvreader = csv.reader(prices, dialect='excel', quoting=csv.QUOTE_MINIMAL)
-        for row in csvreader:
-            # print row
-            values += [row]
-        prices.close()
-        prices = values
-    if isinstance(prices[0], basestring):
-        prices = [COLUMN_SEP.split(row) for row in prices]
-    # print prices
-    index = []
-    if isinstance(prices[0][0], (datetime.date, datetime.datetime, datetime.time)):
-        index = [prices[0] for row in prices]
-        for i, row in prices:
-            prices[i] = row[1:]
-    # try to convert all strings to something numerical:
-    elif any(any(isinstance(value, basestring) for value in row) for row in prices):
-        #print '-'*80
-        for i, row in enumerate(prices):
-            #print i, row
-            for j, value in enumerate(row):
-                s = unicode(value).strip().strip('"').strip("'")
-                #print i, j, s
-                try:
-                    prices[i][j] = int(s)
-                    # print prices[i][j]
-                except:
-                    try:
-                        prices[i][j] = float(s)
-                    except:
-                        # print 'FAIL'
-                        try:
-                            # this is a probably a bit too forceful
-                            prices[i][j] = parse_date(s)
-                        except:
-                            pass
-    # print prices
-    width = max(len(row) for row in prices)
-    datetime_width = width - num_prices
-    if not index and isinstance(prices[0], (tuple, list)) and num_prices:
-        # print '~'*80
-        new_prices = []
-        try:
-            for i, row in enumerate(prices):
-                # print i, row
-                index += [datetime.datetime(*[int(i) for i in row[:datetime_width]])
-                          + datetime.timedelta(hours=16)]
-                new_prices += [row[datetime_width:]]
-                # print prices[-1]
-        except:
-            for i, row in enumerate(prices):
-                index += [row[0]]
-                new_prices += [row[1:]]
-        prices = new_prices or prices
-    # print index
-    # TODO: label the columns somehow (if first row is a bunch of strings/header)
-    if len(index) == len(prices):
-        df = pd.DataFrame(prices, index=index, columns=columns)
-    else:
-        df = pd.DataFrame(prices)
-    return df
+    symbols = normalize_symbols(symbol)
+    prices = price_dataframe(symbols, start=start, end=end, price_type=price_type, cleaner=cleaner)
+    return series_bollinger(prices[symbols[0]], window=window, sigma=sigma, plot=False)
 
+
+def symbols_bollinger(symbols='sp5002012',
+    start=datetime.datetime(2008, 1, 1), end=datetime.datetime(2009, 12, 31), price_type='adjusted_close', cleaner=clean_dataframe,
+    window=20, sigma=1.):
+    """Calculate the Bolinger for a list or set of symbols
+
+    Example:
+    >>> symbols_bollinger(["AAPL", "GOOG", "IBM", "MSFT"], '10-12-01', '10-12-30')[-5:]  # doctest: +NORMALIZE_WHITESPACE
+                             GOOG      AAPL       IBM      MSFT
+    2010-12-23 16:00:00  1.298178  1.185009  1.177220  1.237684
+    2010-12-27 16:00:00  1.073603  1.371298  0.590403  0.932911
+    2010-12-28 16:00:00  0.745548  1.436278  0.863406  0.812844
+    2010-12-29 16:00:00  0.874885  1.464894  2.096242  0.752602
+    2010-12-30 16:00:00  0.634661  0.793493  1.959324  0.498395
+    """
+    symbols = normalize_symbols(symbols)
+    prices = price_dataframe(symbols, start=start, end=end, price_type=price_type, cleaner=cleaner)
+    return frame_bollinger(prices, window=window, sigma=sigma, plot=False)
+
+
+def bollinger_events(symbols, start=None, end=None, price_type='close', window=20, market_symbol='SPY', threshold=-2, threshold_market=1.4, threshold_yest=None):
+    threshold = threshold or -2.0
+    threshold_yest = threshold_yest or threshold
+    threshold_market = threshold_market or threshold * (-0.65)
+    bol = symbols_bollinger(symbols, start, end, price_type=price_type, window=window)
+    # bol = bol.fillna(0.0).values
+    market = bol.copy()
+    market_series = symbols_bollinger([market_symbol]*len(bol.columns), start, end, price_type=price_type, window=window)
+    for sym in market.columns:
+        market[sym] = market_series
+    market = market.values
+    bol = bol.values
+    if threshold >= 0:
+        return (bol[1:] > threshold) & (bol[:-1] <= threshold_yest) & (market[1:] < threshold_market)
+    return (bol[1:] < threshold) & (bol[:-1] >= threshold_yest) & (market[1:] >= threshold_market)
+
+# Bolinger band charts and indicator values
+###################################################################
+
+###################################################################
+# sim analyze: compute statistics 
 
 def metrics(prices, fudge=False, sharpe_days=252., baseline='$SPX'):
     """Calculate the volatiliy, average daily return, Sharpe ratio, and cumulative return
@@ -527,8 +444,19 @@ def metrics(prices, fudge=False, sharpe_days=252., baseline='$SPX'):
     results['return rate'] = results['total return'] - 1.0
     return results
 
+def analyze(args):
+    print 'Report for {0}...'.format(args.infile)
+    report = metrics(args.infile, fudge=args.fudge, sharpe_days=args.sharpe_days)
+    print report
 
-def prices(symbol='$DJI', start=datetime.datetime(2009,2,1), end=datetime.datetime(2012,7,31)):
+    return report
+
+# sim analyze: compute statistics 
+###################################################################
+
+def prices(symbol='$DJI', start=datetime.datetime(2008,1,1), end=datetime.datetime(2009,12,31)):
+    start = util.normalize_date(start or datetime.date(2008, 1, 1))
+    end = util.normalize_date(end or datetime.date(2009, 12, 31))
     symbol = symbol.upper()
     timeofday = datetime.timedelta(hours=16)
     timestamps = du.getNYSEdays(start, end, timeofday)
@@ -575,13 +503,8 @@ def optimize_allocation(symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM"),
     return best_results, best_allocation
 
 
-
-def analyze(args):
-    print 'Report for {0}...'.format(args.infile)
-    report = metrics(args.infile, fudge=args.fudge, sharpe_days=args.sharpe_days)
-    print report
-
-    return report
+##############################################################
+## Generate Buy/Sell orders based on event triggers
 
 def event(args):
     return buy_on_drop(symbol_set=args.symbols, 
@@ -591,6 +514,66 @@ def event(args):
             market_sym=args.baseline,
             threshold=args.threshold,
             sell_delay=args.delay)
+
+def trade(args):
+    """Simulate a sequence of trades indicated in `infile` and write the portfolio value time series to `outfile`"""
+    print args
+    print vars(args)['funds']
+    print args.funds
+    portfolio = { '$CASH': args.funds }
+    print portfolio
+    csvreader = csv.reader(args.infile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+    csvwriter = csv.writer(args.outfile, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+    detailed = not args.simple
+    history = []
+    portfolio_history = []
+
+    #trading_days = du.getNYSEdays(datetime.datetime(2010,01,01), datetime.datetime(2012,01,01), datetime.timedelta(hours=16))
+    for row in csvreader:
+        # print '-'*30 + ' CSV Row ' + '-'*30
+        # print ', '.join(row)
+        trade_date = datetime.datetime(*[int(i) for i in (row[:3] + [16])])
+
+        if history:
+            last_date = datetime.datetime(*(history[-1][:3] + [16])) + datetime.timedelta(days=1)
+            # print (date.date() - last_date).days
+            while (trade_date - last_date).days > 0:
+                print 'Filling in the blanks for {0}'.format(last_date)
+                value = portfolio_value(portfolio, last_date, price='close')
+                print '   the portfolio value on that date is: {0}'.format(value)
+                assert(value != None)
+                # NaN for porfolio value indicates a non-trading day
+                if not np.isnan(value):
+                    history += [[last_date.year, last_date.month, last_date.day] 
+                                + (["$CASH", "0.0", "0.0"] if args.trades else [])
+                                + ([json.dumps(portfolio)] if detailed else []) + [value]]
+                    portfolio_history += [datetime.datetime(last_date.year, last_date.month, last_date.day, 16), portfolio]
+                    csvwriter.writerow(history[-1])
+                last_date += datetime.timedelta(days=1)
+    
+        trade_symbol = row[3]
+        trade_shares = float(row[5])
+        trade_sign = 1 - 2 * int(row[4].strip().upper()[0]=='S')
+        # If this the first row in the CSV and the symbol is $CASH then it represents an initial deposit (Sell) or withdrawal (Buy) of cash
+        # otherwise se need to add or deduct whatever security was bought or sold.
+        # if not (trade_symbol == '$CASH') or history:
+        portfolio[trade_symbol] = portfolio.get(trade_symbol, 0) + trade_sign * trade_shares
+        trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
+        while trade_price == None or np.isnan(trade_price) or float(trade_price) == float('nan'):
+            trade_date += datetime.timedelta(days=1)
+            trade_price = get_price(symbol=trade_symbol, date=trade_date, price='close')
+        #print trade_date, trade_symbol, trade_sign, trade_shares, trade_price
+        if trade_price and trade_shares and trade_sign in (-1, 1):
+            print 'spending cash: {0}'.format(trade_sign * trade_shares * trade_price)
+            portfolio['$CASH'] = portfolio.get('$CASH',0.) - trade_sign * trade_shares * trade_price
+        else:
+            print 'ERROR: bad price, sign, shares: ', trade_price, trade_sign, trade_shares
+        history += [[trade_date.year, trade_date.month, trade_date.day, trade_symbol, trade_sign, trade_shares] + ([json.dumps(portfolio)] if detailed else []) + [portfolio_value(portfolio, trade_date, price='close')]]
+        csvwriter.writerow(history[-1])
+    return metrics(history)
+
+## Generate Buy/Sell orders based on event triggers
+##############################################################
 
 
 ##############################################
@@ -619,6 +602,7 @@ def drop_below(threshold=5, **kwargs):
         return True
     else:
         return False
+
 
 def generate_orders(events, sell_delay=5, sep=','):
     """Generate CSV orders based on events indicated in a DataFrame
@@ -714,14 +698,13 @@ def find_events(symbols, d_data, market_sym='$SPX', trigger=drop_below, trigger_
 def get_clean_data(symbols=None, 
                    dataobj=dataobj, 
                    start=None, 
-                   end=datetime.datetime(2009, 12, 31),
+                   end=None,
                    market_sym='$SPX',
                    reset_cache=True):
-    start = start or datetime.datetime(2008, 1, 1)
-    end = end or datetime.datetime(2009, 12, 31)
+    start = util.normalize_date(start or datetime.date(2008, 1, 1))
+    end = util.normalize_date(end or datetime.date(2009, 12, 31))
     symbols = normalize_symbols(symbols)
     symbols += [market_sym]
-
 
     print "Calculating timestamps for {0} SP500 symbols".format(len(symbols))
     ldt_timestamps = du.getNYSEdays(start, end, datetime.timedelta(hours=16))
