@@ -27,6 +27,7 @@ import itertools
 import os
 import json
 import copy
+from collections import Mapping
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -198,7 +199,8 @@ def normalize_symbols(symbols, *args):
       ["$SPX", "AAPL"]
       >>> normalize_symbols(["$SPX", ["GOOG", "AAPL"]])
     """
-    if not symbols or (not isinstance(symbols, basestring) and not any(symbols)):
+    if (      (hasattr(symbols, '__iter__') and not any(symbols))
+        or (isinstance(symbols, (list, tuple, Mapping)) and not symbols)):
         return []
     if isinstance(symbols, basestring):
         # get_symbols_from_list seems robust to string normalizaiton like .upper()
@@ -248,7 +250,7 @@ def price_dataframe(symbols='sp5002012',
     price_type='actual_close',
     cleaner=clean_dataframe,
     ):
-    """Calculate the Sharpe Ratio and other performance metrics for a portfolio
+    """Retrieve the prices of a list of equities as a DataFrame (columns = symbols)
 
     Arguments:
       symbols (list of str): Ticker symbols like "GOOG", "AAPL", etc
@@ -294,7 +296,7 @@ def portfolio_prices(
         allocation = [1. / len(symbols)] * len(symbols)
     if len(allocation) < len(symbols):
         allocation = list(allocation) + [1. / len(symbols)] * (len(symbols) - len(allocation))
-    total = sum(allocation)
+    total = np.sum(allocation.sum)
     allocation = np.array([(float(a) / total) for a in allocation])
 
     timestamps = du.getNYSEdays(start, end, datetime.timedelta(hours=16))
@@ -378,10 +380,12 @@ def bollinger_events(symbols, start=None, end=None, price_type='close', window=2
     for sym in market.columns:
         market[sym] = market_series
     market = market.values
-    bol = bol.values
+    bolv = bol.values
     if threshold >= 0:
-        return (bol[1:] > threshold) & (bol[:-1] <= threshold_yest) & (market[1:] < threshold_market)
-    return (bol[1:] < threshold) & (bol[:-1] >= threshold_yest) & (market[1:] >= threshold_market)
+        events = (bolv[1:] > threshold) & (bolv[:-1] <= threshold_yest) & (market[1:] < threshold_market)
+    else:
+        events =(bolv[1:] < threshold) & (bolv[:-1] >= threshold_yest) & (market[1:] >= threshold_market)
+    return pd.DataFrame(events, index=bol.index[1:], columns=bol.columns)
 
 # Bolinger band charts and indicator values
 ###################################################################
@@ -505,6 +509,48 @@ def optimize_allocation(symbols=("AAPL", "GLD", "GOOG", "$SPX", "XOM"),
 
 ##############################################################
 ## Generate Buy/Sell orders based on event triggers
+
+
+def buy_on_drop(symbol_set="sp5002012", 
+            dataobj=dataobj, 
+            start=datetime.datetime(2008, 1, 3), 
+            end=datetime.datetime(2009, 12, 28),
+            market_sym='$SPX',
+            threshold=6,
+            sell_delay=5,
+            ):
+    '''Compute and display an "event profile" for multiple sets of symbols'''
+    if symbol_set:
+        if isinstance(symbol_set, basestring):
+            if symbol_set.lower().startswith('sp'):
+                symbol_set = dataobj.get_symbols_from_list(symbol_set.lower())
+            else:
+                symbol_set = [sym.stip().upper() for sym in symbol_set.split(",")]
+    else:
+        symbol_set = dataobj.get_symbols_from_list("sp5002012")
+    if market_sym:
+        symbol_set.append(market_sym)
+
+    print "Starting Event Study, retrieving data for the {0} symbol list...".format(symbol_set)
+    market_data = get_clean_prices(symbol_set, dataobj=dataobj, start=start, end=end)
+    print "Finding events for {0} symbols between {1} and {2}...".format(len(symbol_set), start, end)
+    trigger_kwargs={'threshold': threshold}
+    events = find_events(symbol_set, market_data,  market_sym=market_sym, trigger=drop_below, trigger_kwargs=trigger_kwargs)
+
+    csvwriter = csv.writer(getattr(args, 'outfile', open('buy_on_drop_outfile.csv', 'w')), dialect='excel', quoting=csv.QUOTE_MINIMAL)
+    for order in generate_orders(events, sell_delay=sell_delay, sep=None):
+        csvwriter.writerow(order)
+
+    print "Creating Study report for {0} events...".format(len(events))
+    ep.eventprofiler(events, market_data, 
+                         i_lookback=20, i_lookforward=20,
+                         s_filename='Event report--buy on drop below {0} for {1} symbols.pdf'.format(threshold, len(symbol_set)),
+                         b_market_neutral=True,
+                         b_errorbars=True,
+                         s_market_sym=market_sym,
+                         )
+    return events
+
 
 def event(args):
     return buy_on_drop(symbol_set=args.symbols, 
@@ -639,26 +685,48 @@ def generate_orders(events, sell_delay=5, sep=','):
                 yield order
 
 
-def event_dataframe(df, trigger, **trigger_kwargs):
+def orders_from_events(events, sell_delay=5, num_shares=100):
+    """Create a DataFrame of orders (signed share quantities) based on event triggers (T/F or 0/1 matrix)
 
-    for col in columns:
-        if s_sym == market_sym:
-            continue
-        for i in range(1, len(ldt_timestamps)):
-            # Calculating the returns for this timestamp
-            kwargs = dict(trigger_kwargs)
-            kwargs['price_today'] = df_close[s_sym].ix[ldt_timestamps[i]]
-            kwargs['price_yest'] = df_close[s_sym].ix[ldt_timestamps[i - 1]]
-            kwargs['return_today'] = (kwargs['price_today'] / (kwargs['price_yest'] or 1.)) - 1
-            kwargs['market_price_today'] = ts_market.ix[ldt_timestamps[i]]
-            kwargs['market_price_yest'] = ts_market.ix[ldt_timestamps[i - 1]]
-            kwargs['market_return_today'] = (kwargs['market_price_today'] / (kwargs['market_price_yest'] or 1.)) - 1
+    Arguments:
+      events (DataFrame): mask table to indicate occurrence of buy event (1 = buy, NaN/0/False = do nothing)
+      sell_delay (int): number of days after the buy order to initiate a sell order of those shares
+      num_shares (int): number of shares to buy and sell at each event
 
-            if trigger(**kwargs):
-                df_events[s_sym].ix[ldt_timestamps[i]] = 1
-    print 'Found {0} events where priced dropped below {1}.'.format(df_events.sum(axis=1).sum(axis=0), trigger_kwargs['threshold'])
-    return df_events
+    Returns:
+      DataFrame: Signed integer numbers of shares to buy (+) or sell (-)
+        columns are stock ticker symbols
+        index is datetime at end of trading day (16:00 in NY)
+    """
 
+    buy = events.copy() * num_shares
+    sell = -1 * pd.DataFrame(buy.copy().values[:-sell_delay], index=buy.index[sell_delay:], columns=buy.columns)
+    sell = pd.concat([0 * buy.iloc[:sell_delay], sell])
+    for i in range(sell_delay):
+        sell.iloc[-1] -= buy.iloc[-sell_delay + i]
+    orders = buy + sell
+    return orders
+
+
+def portfolio_from_orders(orders, funds=1e5, price_type='close'):
+    """Create a DataFrame of portfolio holdings (#'s' of shares for the symbols and dates)
+
+    Appends the "$CASH" symbol to the porfolio and initializes it to `funds` indicated.
+    Appends the symbol "total_value" to store the total value of cash + stocks at each timestamp.
+
+    The symbol holdings are found by multipling each element of the orders matrix by the 
+    price matrix for those symbols and then computing a cumulative sum of those purchases.
+    
+        portfolio["$CASH"] = funds - (orders * prices).sum(axis=1).cumsum()
+        portfolio["total_value"] = portfolio["$CASH"] + (orders.cumsum() * prices).sum(axis=1)
+    
+    """
+    portfolio = orders.copy()
+    prices = price_dataframe(orders.columns, start=orders.index[0], end=orders.index[-1],
+                             price_type=price_type, cleaner=clean_dataframe)
+    portfolio["$CASH"] = funds - (orders * prices).sum(axis=1).cumsum()
+    portfolio["total_value"] = portfolio["$CASH"] + (orders.cumsum() * prices).sum(axis=1)
+    return portfolio
 
 
 def find_events(symbols, d_data, market_sym='$SPX', trigger=drop_below, trigger_kwargs={}):
@@ -695,7 +763,8 @@ def find_events(symbols, d_data, market_sym='$SPX', trigger=drop_below, trigger_
     print 'Found {0} events where priced dropped below {1}.'.format(df_events.sum(axis=1).sum(axis=0), trigger_kwargs['threshold'])
     return df_events
 
-def get_clean_data(symbols=None, 
+
+def get_clean_prices(symbols=None, 
                    dataobj=dataobj, 
                    start=None, 
                    end=None,
@@ -720,47 +789,6 @@ def get_clean_data(symbols=None,
         d_data[s_key] = d_data[s_key].fillna(method='bfill')
         d_data[s_key] = d_data[s_key].fillna(1.0)
     return d_data
-
-
-def buy_on_drop(symbol_set="sp5002012", 
-            dataobj=dataobj, 
-            start=datetime.datetime(2008, 1, 3), 
-            end=datetime.datetime(2009, 12, 28),
-            market_sym='$SPX',
-            threshold=6,
-            sell_delay=5,
-            ):
-    '''Compute and display an "event profile" for multiple sets of symbols'''
-    if symbol_set:
-        if isinstance(symbol_set, basestring):
-            if symbol_set.lower().startswith('sp'):
-                symbol_set = dataobj.get_symbols_from_list(symbol_set.lower())
-            else:
-                symbol_set = [sym.stip().upper() for sym in symbol_set.split(",")]
-    else:
-        symbol_set = dataobj.get_symbols_from_list("sp5002012")
-    if market_sym:
-        symbol_set.append(market_sym)
-
-    print "Starting Event Study, retrieving data for the {0} symbol list...".format(symbol_set)
-    market_data = get_clean_data(symbol_set, dataobj=dataobj, start=start, end=end)
-    print "Finding events for {0} symbols between {1} and {2}...".format(len(symbol_set), start, end)
-    trigger_kwargs={'threshold': threshold}
-    events = find_events(symbol_set, market_data,  market_sym=market_sym, trigger=drop_below, trigger_kwargs=trigger_kwargs)
-
-    csvwriter = csv.writer(getattr(args, 'outfile', open('buy_on_drop_outfile.csv', 'w')), dialect='excel', quoting=csv.QUOTE_MINIMAL)
-    for order in generate_orders(events, sell_delay=sell_delay, sep=None):
-        csvwriter.writerow(order)
-
-    print "Creating Study report for {0} events...".format(len(events))
-    ep.eventprofiler(events, market_data, 
-                         i_lookback=20, i_lookforward=20,
-                         s_filename='Event report--buy on drop below {0} for {1} symbols.pdf'.format(threshold, len(symbol_set)),
-                         b_market_neutral=True,
-                         b_errorbars=True,
-                         s_market_sym=market_sym,
-                         )
-    return events
 
 ## Event Studies
 ##############################################
