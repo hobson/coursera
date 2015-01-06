@@ -33,6 +33,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from dateutil.parser import parse as parse_date
+from scipy import integrate
 
 import QSTK.qstkutil.DataAccess as da
 import QSTK.qstkutil.qsdateutil as du
@@ -198,6 +199,9 @@ def normalize_symbols(symbols, *args):
       >>> normalize_symbols("  $SPX   ", " aaPL ")
       ["$SPX", "AAPL"]
       >>> normalize_symbols(["$SPX", ["GOOG", "AAPL"]])
+      ["$SPX", "GOOG", "AAPL"]
+      >>> normalize_symbols(" $Spy, Goog, aAPL ")
+      ["$SPY", "GOOG", "AAPL"]
     """
     if (      (hasattr(symbols, '__iter__') and not any(symbols))
         or (isinstance(symbols, (list, tuple, Mapping)) and not symbols)):
@@ -207,7 +211,7 @@ def normalize_symbols(symbols, *args):
         try:
             return list(set(dataobj.get_symbols_from_list(symbols)))
         except:
-            return [symbols.upper().strip()]
+            return [s.upper().strip() for s in symbols.split(',')]
     else:
         ans = []
         for sym in (list(symbols) + list(args)):
@@ -727,6 +731,66 @@ def portfolio_from_orders(orders, funds=1e5, price_type='close'):
     portfolio["$CASH"] = funds - (orders * prices).sum(axis=1).cumsum()
     portfolio["total_value"] = portfolio["$CASH"] + (orders.cumsum() * prices).sum(axis=1)
     return portfolio
+
+
+######### Machine Learning or Optimization of Prediction
+## 
+
+def integrated_change(ts, integrator=integrate.trapz, clip_floor=None, clip_ceil=float('inf')):
+    """Total value * time above the starting value within a TimeSeries"""
+    if clip_floor is None:
+        clip_floor = ts[0]
+    if clip_ceil < clip_floor:
+        polarity = -1 
+        offset, clip_floor, clip_ceil, = clip_ceil, clip_ceil, clip_floor
+    else:
+        polarity, offset = 1, clip_floor
+    clipped_values = np.clip(ts.values - offset, clip_floor, clip_ceil)
+    print polarity, offset, clip_floor, clip_ceil
+    print clipped_values
+    integrator_types = set(['trapz', 'cumtrapz', 'simps', 'romb'])
+    if integrator in integrator_types:
+        integrator = integrate.__getattribute__(integrator)
+    integrator = integrator or integrate.trapz
+    # datetime units converted to seconds (since 1/1/1970)
+    return integrator(clipped_values, ts.index.astype(np.int64) / 10**9)
+
+
+def clipping_start_end(ts, capacity=100):
+    """Start and end index that clips the price/value of a time series the most
+
+    Assumes that the integrated maximum includes the peak (instantaneous maximum).
+
+    Arguments:
+      ts (TimeSeries): Time series to attempt to clip to as low a max value as possible
+      capacity (float): Total "funds" or "energy" available for clipping (integrated area under time series)
+
+    Returns:
+      2-tuple: Timestamp of the start and end of the period of the maximum clipped integrated increase
+    """
+    ts_sorted = ts.order(ascending=False)
+    i, t0, t1, integral = 1, None, None, 0
+    while integral <= capacity and i+1 < len(ts):
+        i += 1
+        t0_within_capacity = t0
+        t1_within_capacity = t1
+        t0 = min(ts_sorted.index[:i])
+        t1 = max(ts_sorted.index[:i])
+        integral = integrated_change(ts[t0:t1])
+        print i, t0, ts[t0], t1, ts[t1], integral
+    if t0_within_capacity and t1_within_capacity:
+        return t0_within_capacity, t1_within_capacity
+    # argmax = ts.argmax()  # index of the maximum value
+
+
+def filter_integrated_increase(factors, coef):
+    """Multiply linear coeficients by"""
+    pass 
+
+
+##
+######### Machine Learning or Optimization of Prediction
+ 
 
 
 def find_events(symbols, d_data, market_sym='$SPX', trigger=drop_below, trigger_kwargs={}):
