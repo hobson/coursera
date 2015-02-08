@@ -1,7 +1,12 @@
+from __future__ import print_function
+import six
+import future
+from queue import PriorityQueue
 import math
 import random
+from traceback import print_exc
 
-import netoworkx as nx
+import networkx as nx
 import re
 
 from nltk.corpus import wordnet as wn
@@ -31,11 +36,11 @@ def memoize(fn, slot=None):
 
 
 class Problem(object):
-    """The abstract class for a formal problem.  You should subclass
-    this and implement the methods actions and result, and possibly
-    __init__, goal_test, and path_cost. Then you will create instances
-    of your subclass and solve them with the various search functions."""
-
+    """The abstract class for a graph search problem.
+    Should override the methods `.actions()`, and `.result()`
+    If result(action) == action then no need to override (this is default `result()`).
+    May override `.__init__()`, `.goal_test()`, and `.path_cost()`.
+    """
     def __init__(self, initial, goal=None):  # , graph=nx.Graph()):
         """The constructor specifies the initial state, and possibly a goal
         state, if there is a unique goal.  Your subclass's constructor can add
@@ -53,7 +58,7 @@ class Problem(object):
         """Return the state that results from executing the given
         action in the given state. The action must be one of
         self.actions(state)."""
-        pass
+        return action
 
     def goal_test(self, state):
         """Return True if the state is a goal. The default method compares the
@@ -75,9 +80,36 @@ class Problem(object):
         pass
 
 
-def swap(tup, i0, i1):
-    tup2 = tuple(tup)
-    tup2[i0], tup2[i1] = tup2[i1], tup2[i0]
+def swap(seq, i0=1, i1=0):
+    """Swap elements in a sequence
+
+    Maintains the type of sequence (useful for swapping elements in an immutable tuple),
+    which means it won't swap anything for `set`s, and `dict`s  result a list of keys.
+    Operates on mutable sequences (e.g. `list`s) in-place.
+    For iterables 
+
+    >>> swap([1, 2, 3])
+    [2, 1, 3]
+    >>> swap(xrange(5), 2)
+    [2, 1, 0, 3, 4]
+    >>> swap(tuple(xrange(5)), 3, 4)
+    (0, 1, 2, 4, 3)
+    >>> swap(range(5), 1, 4)
+    [0, 4, 2, 3, 1]
+    >>> swap(set([1,2,3]))
+    [2, 1, 3]
+    """
+    typ = None
+    if not hasattr(seq, '__setitem__') or not not hasattr(seq, '__getitem__'):
+        # set-like objects don't have an order, so should remain a list when done 
+        if not hasattr(seq, '__and__'):
+            typ = type(seq)
+        seq = list(seq)
+    seq[i0], seq[i1] = seq[i1], seq[i0]
+    try:
+        return typ(seq)
+    except TypeError:
+        return seq
 
 
 class EightPuzzleProblem(Problem):
@@ -90,7 +122,7 @@ class EightPuzzleProblem(Problem):
     """
     N = 3
     N2 = 9
-    corners = set(0, N-1, N*(N-1), N2-1)
+    corners = set((0, N-1, N*(N-1), N2-1))
 
     def __init__(self, initial=None, goal=tuple(range(N2))):  # , graph=nx.Graph()):
         """The constructor specifies the initial state, and possibly a goal
@@ -101,26 +133,76 @@ class EightPuzzleProblem(Problem):
         else:
             self.N = 3 
         self.N2 = self.N * self.N
-        self.initial = initial or random.permutation(tuple(range(self.N2)))
-        self.goal = goal or tuple(range(N2))
+        self.initial = initial or random.permutation(list(range(self.N2)))
+        self.goal = goal or list(range(self.N2))
 
     def actions(self, state):
         i0 = state.index(0)
         # 4 corners
-        if i0 == 0:
-            return [swap(state, i0, i0 + 1), swap(state, i0, i0 + N)]
-        if i0 == N - 1:
-            return [swap(state, i0, i0 - 1), swap(state, i0, i0 + N)]
-        if i0 == N2 - N:
-            return [swap(state, i0, i0 + 1), swap(state, i0, i0 - N)]
-        if i0 == N2 - 1:
-            return [swap(state, i0, i0 - 1), swap(state, i0, i0 - N)]
-            
+        if i0 == 0:                    # top-left
+            return [swap(state, i0, i0 + 1), swap(state, i0, i0 + self.N)]
+        elif i0 == self.N - 1:         # top-right
+            return [swap(state, i0, i0 - 1), swap(state, i0, i0 + self.N)]
+        elif i0 == self.N2 - self.N:   # bottom-left
+            return [swap(state, i0, i0 + 1), swap(state, i0, i0 - self.N)]
+        elif i0 == self.N2 - 1:        # bottom-right
+            return [swap(state, i0, i0 - 1), swap(state, i0, i0 - self.N)]
+        # noncorner, top edge  (3 actions)
+        elif i0 < self.N:
+            return [swap(state, i0, i0 - 1), swap(state, i0, i0 + 1), swap(state, i0, i0 + self.N)]
+        elif i0 > self.N2 - self.N:
+            return [swap(state, i0, i0 - 1), swap(state, i0, i0 + 1), swap(state, i0, i0 - self.N)]
+        elif not i0 % self.N:          # noncorner left edge
+            return [swap(state, i0, i0 - self.N), swap(state, i0, i0 + self.N), swap(state, i0, i0 + 1)]
+        elif not i0 % self.N:          # noncorner right edge
+            return [swap(state, i0, i0 - self.N), swap(state, i0, i0 + self.N), swap(state, i0, i0 - 1)]
+        # noncorner, nonedge
+        return [swap(state, i0, i0 - self.N), swap(state, i0, i0 + self.N), swap(state, i0, i0 - 1), swap(state, i0, i0 + 1)]
 
 
 def distance((ax, ay), (bx, by)):
     "The distance between two (x, y) points."
     return math.hypot((ax - bx), (ay - by))
+
+
+def IterablePriorityQueue(PriorityQueue):
+    def put():
+        self.keys.append()
+
+def astar(problem, f):
+    """Search the nodes with the lowest f scores first.
+
+    Same as Norvig implementation but uses builtin PriorityQueue and assumes
+    Node(state) == state == action  (a state is it's own pointer reference)
+    You specify the function f(node) that you want to minimize; for example,
+    if f is a heuristic estimate to the goal, then we have greedy best
+    first search; if f is node.depth then we have breadth-first search.
+    There is a subtlety: the line "f = memoize(f, 'f')" means that the f
+    values will be cached on the nodes as they are computed. So after doing
+    a best first search you can examine the f values of the path returned."""
+    raise NotImplementedError("PriorityQueue needs a __getitem__, __setitem__, and del methods before this has a chance.")
+    f = memoize(f, 'f')
+    node = problem.initial
+    if problem.goal_test(node):
+        return node
+    frontier = PriorityQueue()
+    frontier.put((f(node), node))
+    explored = set()
+    while frontier:
+        node = frontier.get()
+        if problem.goal_test(node):
+            return node
+        explored.add(node)
+        for child in problem.actions(node):
+            if child not in explored and child not in frontier:
+                frontier.put((f(child), child))
+            elif child in frontier:
+                incumbent = child
+                if f(child) < f(incumbent):
+                    del frontier[incumbent]
+                    frontier.append(child)
+    return None
+
 
 
 class GraphProblem(Problem):
@@ -203,6 +285,7 @@ class Node:
         return hash(self.state)
 
 
+
 def astar_search(problem, f):
     """Search the nodes with the lowest f scores first.
     You specify the function f(node) that you want to minimize; for example,
@@ -215,8 +298,8 @@ def astar_search(problem, f):
     node = Node(problem.initial)
     if problem.goal_test(node.state):
         return node
-    frontier = PriorityQueue(min, f)
-    frontier.append(node)
+    frontier = PriorityQueue()
+    frontier.put(node)
     explored = set()
     while frontier:
         node = frontier.pop()
