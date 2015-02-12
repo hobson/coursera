@@ -17,40 +17,6 @@ from nltk.corpus import wordnet as wn
 infinity = float('inf')
 
 
-"""
-FIXME:
----------------------------------------------------------------------------
-AttributeError                            Traceback (most recent call last)
-<ipython-input-7-878b6c79add3> in <module>()
-----> 1 astar_search(prob, f=N_puzzle_heuristic)
-
-/home/hobs/src/coursera/aiplan/graph_plan.py in astar_search(problem, f)
-    314             return node
-    315         explored.add(node.state)
---> 316         for child in node.expand(problem):
-    317             if child.state not in explored and child not in frontier:
-    318                 frontier.append(child)
-
-/home/hobs/.virtualenvs/coursera/lib/python2.7/site-packages/aima/search.pyc in expand(self, problem)
-     78         "List the nodes reachable in one step from this node."
-     79         return [self.child_node(problem, action)
----> 80                 for action in problem.actions(self.state)]
-     81 
-     82     def child_node(self, problem, action):
-
-/home/hobs/src/coursera/aiplan/graph_plan.py in actions(self, state)
-    139 
-    140     def actions(self, state):
---> 141         i0 = state.index(0)
-    142         # 4 corners
-    143         if i0 == 0:                    # top-left
-
-AttributeError: 'NoneType' object has no attribute 'index'
-
-
-"""
-
-
 class Problem(object):
     """The abstract class for a graph search problem.
     Should override the methods `.actions()`, and `.result()`
@@ -80,7 +46,7 @@ class Problem(object):
         """Return True if the state is a goal. The default method compares the
         state to self.goal, as specified in the constructor. Override this
         method if checking against a single self.goal is not enough."""
-        return state == self.goal
+        return force_hashable(state) == force_hashable(self.goal)
 
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
@@ -177,6 +143,7 @@ class EightPuzzleProblem(Problem):
         self.initial = range(self.N2)
         self.initial = initial or shuffled(range(self.N2))
         self.goal = goal or list(range(self.N2))
+        self.typ = type(goal) if goal else type(initial) if initial else tuple
         if verbosity is not None:
             self.verbosity = int(verbosity)
 
@@ -207,6 +174,10 @@ class EightPuzzleProblem(Problem):
             possibilities = [swap(state, i0, i0 - self.N), swap(state, i0, i0 + self.N), swap(state, i0, i0 - 1), swap(state, i0, i0 + 1)]
         if self.verbosity:
             print('possibilities = {0}'.format(possibilities))
+        # all actions should be reversible
+        assert(all(self.state in self.actions(st) for st in possibilities))
+        return possibilities
+
 
 def distance((ax, ay), (bx, by)):
     "The distance between two (x, y) points."
@@ -379,6 +350,29 @@ def astar_search(problem, f=N_puzzle_heuristic):
     There is a subtlety: the line "f = memoize(f, 'f')" means that the f
     values will be cached on the nodes as they are computed. So after doing
     a best first search you can examine the f values of the path returned."""
+    f = memoize(f, 'f')
+    node = Node(problem.initial)
+    if problem.goal_test(node.state):
+        return node
+    frontier = PriorityQueue(min, f)
+    frontier.append(node)
+    explored = set()
+    while frontier:
+        node = frontier.pop()
+        if problem.goal_test(node.state):
+            return node
+        explored.add(force_hashable(node.state))
+        for child in node.expand(problem):
+            hashable_child = force_hashable(child.state)
+            if hashable_child not in explored and child not in frontier:
+                frontier.append(child)
+            elif hashable_child in frontier:
+                hashable_incumbent = frontier[hashable_child]
+                if f(hashable_child) < f(hashable_incumbent):
+                    del frontier[hashable_incumbent]
+                    frontier.append(hashable_child)
+    return None
+
     f = memoize(f, 'f')
     node = Node(problem.initial)
     if problem.goal_test(node.state):
