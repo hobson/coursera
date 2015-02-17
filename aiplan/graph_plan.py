@@ -1,11 +1,12 @@
 from __future__ import print_function
 import six
 import future
-# from queue import PriorityQueue
+import warnings
+from queue import PriorityQueue as BuiltinPriorityQueue
 import math
 import random
 from traceback import print_exc
-from aima.search import Node, PriorityQueue, memoize
+from aima.search import Node, PriorityQueue
 from pug.decorators import force_hashable
 
 import networkx as nx
@@ -42,15 +43,23 @@ Examples:
      )
     )
     >>> # clearly suboptimal, because getting different answer eacy time
-    >>> min(astar_search(EightPuzzleProblem(initial=[1,6,4,8,7,0,3,2,5], verbosity=0)).depth for i in range(100))
-    23
-    >>> min(astar_search(EightPuzzleProblem(initial=[8,1,7,4,5,6,2,0,3], verbosity=0)).depth for i in range(100))
-    31
+    >>> min(astar_search(EightPuzzleProblem(initial=[1,6,4,8,7,0,3,2,5], verbosity=0)).depth for i in range(10))
+    21
+    >>> min(astar_search(EightPuzzleProblem(initial=[8,1,7,4,5,6,2,0,3], verbosity=0)).depth for i in range(10))
+    25
     >>> len(nodes_at_depth(EightPuzzleProblem(initial=range(9), verbosity=0), depth=27, verbosity=0))
     6274
 
+
 SCRIPS:
     2 op1 actions are possible
+
+    attempts:
+    - 71,23,24,22,21
+    + 37,81,32,25
+    + 6274
+    + 3,4,6,5
+    - 3,2,1,4,5
 
 """
 
@@ -85,7 +94,7 @@ class Problem(object):
         method if checking against a single self.goal is not enough."""
         if self.verbosity:
             print('{0} =? {1}'.format(state, self.goal))
-        state = state.getattr('state', state)
+        state = getattr(state, 'state', state)
         return force_hashable(state) == force_hashable(self.goal)
 
     def path_cost(self, c, state1, action, state2):
@@ -243,7 +252,7 @@ def distance((ax, ay), (bx, by)):
 
 
 def h_npuzzle_simple(node):
-    return node.state.index(0)
+    return node.depth + node.state.index(0)
 
 
 def h_npuzzle_manhattan(node, N2=None, verbosity=None):
@@ -255,7 +264,9 @@ def h_npuzzle_manhattan(node, N2=None, verbosity=None):
     References:
         http://heuristicswiki.wikispaces.com/Manhattan+Distance
     """
-    N2 = N2 or h_npuzzle_manhattan.N2 or max(node.state) + 1
+    depth = node.depth
+    state = getattr(node, 'state', node)
+    N2 = N2 or h_npuzzle_manhattan.N2 or max(state) + 1
     h_npuzzle_manhattan.N2 = N2
     if verbosity is None:
         verbosity = h_npuzzle_manhattan.verbosity
@@ -265,11 +276,11 @@ def h_npuzzle_manhattan(node, N2=None, verbosity=None):
     N = int(N2 ** 0.5)
     distance = 0 
     for tile in range(1, N2):
-        pos = node.state.index(tile)
+        pos = state.index(tile)
         distance += abs(pos % N - tile % N) + abs(pos / N - tile / N)
     if verbosity:
-        print('h_npuzzle_manhattan(node={0}, N2={1}) distance = {2}'.format(node, N2, distance))
-    return distance 
+        print('h_npuzzle_manhattan(node.state={0}, N2={1}) distance = {2}'.format(state, N2, distance))
+    return depth + distance 
 h_npuzzle_manhattan.N2 = None
 h_npuzzle_manhattan.verbosity = 0
 
@@ -429,7 +440,6 @@ def best_first_graph_search(problem, f=h_npuzzle_manhattan):
 # END NORVIG AIMA code
 
 
-# NORVIG's original version of astar_search
 def best_first_tree_search(problem, f=h_npuzzle_manhattan):
     """Search the nodes with the lowest f scores first.
     You specify the function f(node) that you want to minimize; for example,
@@ -440,26 +450,37 @@ def best_first_tree_search(problem, f=h_npuzzle_manhattan):
     a best first search you can examine the f values of the path returned."""
     # f = memoize(f, 'f')
     node = Node(problem.initial)
-    if problem.goal_test(node.state):
+    if problem.goal_test(node):
         return node
-    frontier = PriorityQueue(min, f)
-    frontier.append(node)
+    # frontier = PriorityQueue(min, f)
+    # frontier.append(node)
+    frontier = BuiltinPriorityQueue()
+    frontier_set = set()
+    frontier.put((f(node), node))
+    frontier_set.add(node)
     # explored = set()
     while frontier:
-        node = frontier.pop()
+        print(list(frontier.queue))
+        # print(list(frontier))
+        #node0 = min((f(n[1]), n[1]) for n in frontier)[1]
+        node = frontier.get()[1]
+        frontier_set.discard(node)
+        #assert(node0.state == node.state)
         if problem.goal_test(node):
             return node
         # explored.add(force_hashable(node.state))
         for child in node.expand(problem):
-            if child not in frontier:
-                frontier.append(child)
-            else:
-                incumbent = frontier[child]
-                if f(child) < f(incumbent):
-                    del frontier[incumbent]
-                    frontier.append(child)
+            if child not in frontier_set:
+                frontier.put((f(child), child))
+                frontier_set.add(child)
+            # else: 
+            #     incumbent = frontier[child]
+            #     if f(child) < f(incumbent):
+            #         warnings.warn("This shouldn't ever happen, child in frontier but new child has lower cost!\nchild={0}, f(child)={1}, f(incumbent)={2}".format(child, f(child), f(incumbent)))
+            #         del frontier[incumbent]
+            #         frontier.append(child)
     return None
-# END NORVIG AIMA code
+
 
 
 def astar_search(problem, f=h_npuzzle_manhattan):
@@ -474,16 +495,16 @@ def astar_search(problem, f=h_npuzzle_manhattan):
     There is a subtlety: the line "f = memoize(f, 'f')" means that the f
     values will be cached on the nodes as they are computed. So after doing
     a best first search you can examine the f values of the path returned."""
-    f = memoize(f, 'f')
+    # f = memoize(f, 'f')
     node = Node(problem.initial)
-    if problem.goal_test(node.state):
+    if problem.goal_test(node):
         return node
     frontier = PriorityQueue(min, f)
     frontier.append(node)
     explored = set()
     while frontier:
         node = frontier.pop()
-        if problem.goal_test(node.state):
+        if problem.goal_test(node):
             return node
         explored.add(force_hashable(node.state))
         for child in node.expand(problem):
