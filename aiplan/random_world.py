@@ -58,11 +58,19 @@ defines two actions
 2. op2()
 """
 
-State = set()
+class State(set):
+    pass
 
 def proposition_kwargs(proposition):
     """Return a dict of positional arguments for a proposition's parameters"""
     return dict(enumerate(proposition[1:]))
+
+def extend_kwargs(kwargs, more_kwargs):
+    extended_kwargs = dict(kwargs)
+    if any(more_kwargs.get(k, v) != v for k, v in kwargs.iteritems()):
+        return False
+    extended_kwargs.update(more_kwargs)
+    return extended_kwargs
 
 class RandomWorld(object):
     """(define (domain random-domain)
@@ -76,7 +84,8 @@ class RandomWorld(object):
         :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
         :effect (and (S ?x1 ?x3) (not (S ?x3 ?x1)))))  ; FIXME: Does "not" mean to negate the existing state or just set it to False?
     """
-    operators =  {
+    verbosity = 1
+    actions =  {
         'op1': {
                 'precondition': {('S', 0, 1): True, ('R', 2, 0): True},
                 'effect': {('S', 1, 0): True, ('S', 0, 2): True, ('R', 2, 0): False},
@@ -84,7 +93,7 @@ class RandomWorld(object):
         'op2': {'precondition': {('S', 2, 0): True, ('R', 1, 1): True},
                 'effect': {('S', 0, 2): True, ('S', 2, 0): False}},
         }
-    operators =  {
+    actions =  {
         'op1': {
             'positive_preconditions': set([('S', 'x1', 'x2'), ('R', 'x3', 'x1')]),
             'negative_preconditions': set(),
@@ -99,14 +108,15 @@ class RandomWorld(object):
                },
         }
 
-    def __init__(self, initial=None):
+    def __init__(self, initial=None, verbosity=None):
+        self.verbosity = verbosity if verbosity is not None else self.verbosity
         self.state = State()
         if initial:
             self.state |= initial
         self.applicable_actions = set()
 
     def preconditions(self, name):
-        """ground/evaluate preconditions with args substituted into the appropriate slots in an operation
+        """ground/evaluate preconditions with args substituted into the appropriate slots in an action
 
         Returns:
             2-tuple: (negative_preconditions, positive_preconditions)
@@ -115,8 +125,7 @@ class RandomWorld(object):
         return self.evaluate_action(name, 'precondition')
 
     def evaluate_preconditions(self, name, args):
-        """ground/evaluate preconditions with args substituted into the appropriate slots in an operation
-
+        """ground/evaluate preconditions with args substituted into the appropriate slots in an action
         Returns:
             2-tuple: (negative_preconditions, positive_preconditions)
                 This allows you to e.g. preconditions()[True] to get positive preconditions
@@ -124,7 +133,7 @@ class RandomWorld(object):
         return self.evaluate_action(name, 'precondition', args)
 
     def effects(self, name, args):
-        """ground/evaluate effects by substituting args into the appropriate slots in an operation
+        """ground/evaluate effects by substituting args into the appropriate slots in an action
         
         Returns:
             2-tuple: (negative_effects, positive_effects) or (delete_list, add_list)
@@ -146,9 +155,9 @@ class RandomWorld(object):
         negative, positive = set(), set()
 
         if args is None:
-            args = tuple(range(len(self.operators[name][evaluate_effect])))
+            args = tuple(range(len(self.actions[name][evaluate_effect])))
 
-        for k, is_positive in self.operators[name][evaluate_effect].iteritems():
+        for k, is_positive in self.actions[name][evaluate_effect].iteritems():
             evaluated_proposition = tuple([k[0]] + [args[k[i]] for i in range(1, len(k))])
             if is_positive:
                 positive.add(evaluated_proposition)
@@ -190,43 +199,70 @@ class RandomWorld(object):
                 act_kwargs[k] = v
         return act_kwargs
 
-    def add_applicable_actions(self, action_name, applicable_actions=set(), remaining_preconditions=None, action_args=tuple()):
+    def add_applicable_actions(self, action_name, applicable_actions=set(), remaining_preconditions=None, action_kwargs=dict()):
         """
         preconditions = (positive_preconditions, negative_preconditions)
         args = list of arguments to the operator
 
-        Dock-Worker-Robot example move action:
-            1. precondition = ('adjacent', 'from', 'to')
-            2. 
+        Dock-Worker-Robot example add_applicable_action('move',...) using 11-line algorithm:
+            2.  check len of positive preconditions list (nonempty so go to else at 6 then 7)
+            7.  first positive precondition = ('adjacent', 'from', 'to')
+            8.  first "adjacent" state proposition = ('adjacent', 'loc1', 'loc2')
+            9.  new_substitutions = sigma_prime =  set([('adjacent', ('from', 'loc1'), ('to', 'loc2'))])
+            10. ('from', 'loc1') and ('to', 'loc2') is_valid = True because they're the first/only substitutions
+            11. recursive call to add_applicable_actions, now with nonempty substitutions/sigma set
+            7.  check next positive_precondition = ('at', 'r', 'from')
+            8.  restart loop over states and check first "at" state = ('at', 'r1', 'loc2')  
+            9.  new_substitutions = sigma_prime =  set([('adjacent', ('from', 'loc1'), ('to', 'loc2')),
+                                                       ('at', ('r', 'r1'), ('from', 'loc2'))
+                                                      ])
+            10. ('from', 'loc2') is invalid because contradicts earlier substitution ('from', 'loc1')
+            8.  proceed to next state proposition "adjacent" in for loop = ('adjacent', 'loc2', 'loc1')
+            9.  new_substitutions = sigma_prime =  set([('adjacent', ('from', 'loc2'), ('to', 'loc1'))])
+            10. ('from', 'loc1') and ('to': 'loc1') is_valid because it's the only substitution (nothing to contradict)
+            11. recursive call add_applicable_actions, now with nonempty substitutions/sigma set
 
         Returns:
             set of applicable instances for a given operator (`action_name`) in the current state
         """
+        # # First call to add_applicable_actions should populate the preconditions set
         if remaining_preconditions is None:
-            remaining_preconditions = self.preconditions(action_name, action_args)
+            remaining_preconditions = self.actions[action_name]['negative_preconditions'], self.actions[action_name]['positive_preconditions']
+            if self.verbosity:
+                print('Initial set of preconditions is {0}'.format(remaining_preconditions))
+        # 2. check if positive preconditions still left
         if not remaining_preconditions[True]:
+            # 3. for every negative precondition...
             for neg_precon in remaining_preconditions[False]:
-                if neg_precon in self.state:
-                    return
-            applicable_actions.add()
+                # 4. if state falsifies the tuple(action, action_kwargs)...
+                if neg_precon in self.state: return
+            # 5. A.add((action_name, kwargs))
+            applicable_actions.add((action_name, tuple(action_kwargs.items())))
                 # if self.falsifies(self.state)
+        # 6.
         else:
-            # check positive preconditions
-            for pos_precon in remaining_preconditions[True]:
-                # look for all the state propositions in the current state that might be able to match this positive precondition
-                for state_proposition in self.state:
-                    # if the predicates don't match you can skip it
-                    if state_proposition[0] != pos_precon[0]:
-                        continue
-                    # is it OK to add substitutions in place or do we need to copy and extend them?
-                    # extend the substitution such that the state_proposition and the positive_preconditions match
-                    # a substitution is a dict of variables and the values that they should take on
-                    new_kwargs = dict(act_kwargs)   # | set([pos_precon[1:]])
-                    new_kwargs = update_act_kwargs(new_kwargs, proposition_kwargs(state_proposition))
-                    # check to see if the new substituion is a valid action in the current state, if it is add it to applicable_actions
-                    if new_kwargs:
-                        new_preconditions = set(preconditions).discard(pos_precon)
-                        self.add_applicable_actions(action_name, applicable_actions, new_preconditions, new_kwargs)
+            # 7. choose a positive precondition (TODO: consider using `for` loop but this is used recursively)
+            pos_precon = iter(remaining_preconditions[True]).next()  # .pop() would delete it before we can be sure that's OK
+            if self.verbosity:
+                print('using positive_precondition {0}'.format(pos_precon))            # 8. look for all the state propositions in the current state that might be able to match this positive precondition
+            for state_proposition in self.state:
+                if self.verbosity:
+                    print('Using state proposition {0}'.format(state_proposition))            # 8. look for all the state propositions in the current state that might be able to match this positive precondition
+                # 8. if the predicates don't match you can skip it
+                if state_proposition[0] != pos_precon[0]:
+                    continue
+                # FIXME: is it OK to add substitutions in place or do we need to copy and extend them as this has?
+                # extend the substitution such that the state_proposition and the positive_preconditions match
+                # a substitution is a dict of variables and the values that they should take on
+                # 9. add substitution: sigma_prime = sigma.extend()
+                new_kwargs = extend_kwargs(action_kwargs, dict(zip(pos_precon[1:], state_proposition[1:])))
+                if self.verbosity:
+                    print('sigma_prime = {0}'.format(new_kwargs))
+                # 10. check to see if the new substituion is a valid action in the current state, if it is add it to applicable_actions
+                if new_kwargs:
+                    new_preconditions = tuple(remaining_preconditions)
+                    new_preconditions[True].remove(pos_precon)
+                    self.add_applicable_actions(action_name, applicable_actions, new_preconditions, new_kwargs)
 
 
 class RandomProblem1(RandomWorld):
@@ -239,10 +275,10 @@ class RandomProblem1(RandomWorld):
     """
     goal = State()
 
-    def __init__(self):
-        initial = State()
-        initial |= set([('S', 'B', 'B'), ('S', 'C', 'B'), ('S', 'A', 'C'),
-                        ('R', 'B', 'B'), ('R', 'C', 'B')])
+    def __init__(self, initial=None):
+        default_initial = State([('S', 'B', 'B'), ('S', 'C', 'B'), ('S', 'A', 'C'),
+                                 ('R', 'B', 'B'), ('R', 'C', 'B')])
+        initial = default_initial if initial is None else initial
         super(RandomProblem1, self).__init__(initial=initial)
         self.goal = State()
         self.goal |= set([('S', 'A', 'A')])
