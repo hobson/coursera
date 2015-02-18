@@ -1,6 +1,7 @@
 """
 pyparsing parser definition to parse STRIPS and PDDL files for AI Planning class (coursera)
 """
+from traceback import print_exc
 
 import pyparsing as pp
 
@@ -10,7 +11,7 @@ MAX_NUM_ARGS = 1000000000  # max of 1 billion arguments for any function (relati
 identifier = pp.Word( pp.alphas + "_", pp.alphanums + "-_" )
 variable   = pp.Word('?').suppress() + pp.Word(pp.alphas, pp.alphanums + '_')
 comment    = pp.OneOrMore(pp.Word(';').suppress()) + pp.restOfLine('comment')
-typ        = pp.Literal('-').suppress() + pp.Optional(pp.Word_(' ').suppress()) + identifier
+typ        = pp.Literal('-').suppress() + pp.Optional(pp.Literal(' ').suppress()) + identifier
 
 define       = pp.Keyword('define')   # (define (domain random-domain) ... or (define (problem random-pbl1) ...
 domain       = pp.Keyword('domain')   # (define (domain random-domain) ... 
@@ -93,3 +94,43 @@ def test():
     parsed_domain = enclosed.parseFile('random_domain.strips')
     parsed_problem = enclosed.parseFile('random_pbl1.strips')
     return parsed_domain, parsed_problem
+
+def sandbox():
+    """Based on http://stackoverflow.com/a/4802004/623735"""
+    enclosed = pp.Forward()
+    nestedParens = pp.nestedExpr('(', ')', content=enclosed) 
+    enclosed << (
+                 pp.OneOrMore(pp.Optional(':').suppress() + pp.Word(pp.alphanums + '-_')) 
+               | pp.OneOrMore(pp.Optional('?').suppress() + pp.Word(pp.alphanums + '-_')) 
+               | ',' 
+               | nestedParens)
+    examples = [
+        '(gimme (some (nested, nested (lists))))',
+        '(:requirements :strips)',
+        '(define (domain random-domain))',
+        r'''
+            (:init
+                (S B B) (S C B) (S A C)
+                (R B B) (R C B))
+        ''',
+        r'''
+        (define (domain random-domain)
+          (:requirements :strips)
+          (:action op1
+            :parameters (?x1 ?x2 ?x3)
+            :precondition (and (S ?x1 ?x2) (R ?x3 ?x1))
+            :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
+          (:action op2
+            :parameters (?x1 ?x2 ?x3)
+            :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
+            :effect (and (S ?x1 ?x3) (not (S ?x3 ?x1)))))
+        ''',
+        ]
+    ans = []
+    for ex in examples:
+        try:
+            ans += [enclosed.parseString(ex).asList()]
+            print(ans[-1])
+        except:
+            print_exc()
+    return ans
