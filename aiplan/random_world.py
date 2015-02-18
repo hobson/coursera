@@ -113,7 +113,7 @@ class RandomWorld(object):
         self.state = State()
         if initial:
             self.state |= initial
-        self.applicable_actions = set()
+        self.add_applicable_actions()
 
     def preconditions(self, name):
         """ground/evaluate preconditions with args substituted into the appropriate slots in an action
@@ -199,7 +199,7 @@ class RandomWorld(object):
                 act_kwargs[k] = v
         return act_kwargs
 
-    def add_applicable_actions(self, action_name, applicable_actions=set(), remaining_preconditions=None, action_kwargs=dict()):
+    def add_applicable_actions(self, action_names=None, applicable_actions=None, remaining_preconditions=None, action_kwargs=dict()):
         """
         preconditions = (positive_preconditions, negative_preconditions)
         args = list of arguments to the operator
@@ -225,44 +225,56 @@ class RandomWorld(object):
         Returns:
             set of applicable instances for a given operator (`action_name`) in the current state
         """
-        # # First call to add_applicable_actions should populate the preconditions set
-        if remaining_preconditions is None:
-            remaining_preconditions = self.actions[action_name]['negative_preconditions'], self.actions[action_name]['positive_preconditions']
-            if self.verbosity:
-                print('Initial set of preconditions is {0}'.format(remaining_preconditions))
-        # 2. check if positive preconditions still left
-        if not remaining_preconditions[True]:
-            # 3. for every negative precondition...
-            for neg_precon in remaining_preconditions[False]:
-                # 4. if state falsifies the tuple(action, action_kwargs)...
-                if neg_precon in self.state: return
-            # 5. A.add((action_name, kwargs))
-            applicable_actions.add((action_name, tuple(action_kwargs.items())))
-                # if self.falsifies(self.state)
-        # 6.
-        else:
-            # 7. choose a positive precondition (TODO: consider using `for` loop but this is used recursively)
-            pos_precon = iter(remaining_preconditions[True]).next()  # .pop() would delete it before we can be sure that's OK
-            if self.verbosity:
-                print('using positive_precondition {0}'.format(pos_precon))            # 8. look for all the state propositions in the current state that might be able to match this positive precondition
-            for state_proposition in self.state:
+        if applicable_actions is None:
+            self.applicable_actions = set()
+            applicable_actions = self.applicable_actions
+        if action_names is None:
+            action_names = tuple(self.actions.keys())
+            remaining_preconditions = None
+        elif isinstance(action_names, basestring):
+            action_name = action_names  #action_names = tuple(an.strip() for an in action_names.split(' ') if an.strip())
+            # # First call to add_applicable_actions should populate the preconditions set
+            if remaining_preconditions is None:
+                remaining_preconditions = self.actions[action_name]['negative_preconditions'], self.actions[action_name]['positive_preconditions']
                 if self.verbosity:
-                    print('Using state proposition {0}'.format(state_proposition))            # 8. look for all the state propositions in the current state that might be able to match this positive precondition
-                # 8. if the predicates don't match you can skip it
-                if state_proposition[0] != pos_precon[0]:
-                    continue
-                # FIXME: is it OK to add substitutions in place or do we need to copy and extend them as this has?
-                # extend the substitution such that the state_proposition and the positive_preconditions match
-                # a substitution is a dict of variables and the values that they should take on
-                # 9. add substitution: sigma_prime = sigma.extend()
-                new_kwargs = extend_kwargs(action_kwargs, dict(zip(pos_precon[1:], state_proposition[1:])))
+                    print('Initial set of preconditions is {0}'.format(remaining_preconditions))
+            # 2. check if positive preconditions still left
+            if not remaining_preconditions[True]:
+                # 3. for every negative precondition...
+                for neg_precon in remaining_preconditions[False]:
+                    # 4. if state falsifies the tuple(action, action_kwargs)...
+                    if neg_precon in self.state: return
+                # 5. A.add((action_name, kwargs))
+                applicable_actions.add((action_name, tuple(action_kwargs.items())))
+                    # if self.falsifies(self.state)
+            # 6.
+            else:
+                # 7. choose a positive precondition (TODO: consider using `for` loop but this is used recursively)
+                pos_precon = iter(remaining_preconditions[True]).next()  # .pop() would delete it before we can be sure that's OK
                 if self.verbosity:
-                    print('sigma_prime = {0}'.format(new_kwargs))
-                # 10. check to see if the new substituion is a valid action in the current state, if it is add it to applicable_actions
-                if new_kwargs:
-                    new_preconditions = tuple(remaining_preconditions)
-                    new_preconditions[True].remove(pos_precon)
-                    self.add_applicable_actions(action_name, applicable_actions, new_preconditions, new_kwargs)
+                    print('using positive_precondition {0}'.format(pos_precon))            # 8. look for all the state propositions in the current state that might be able to match this positive precondition
+                for state_proposition in self.state:
+                    if self.verbosity:
+                        print('Using state proposition {0}'.format(state_proposition))            # 8. look for all the state propositions in the current state that might be able to match this positive precondition
+                    # 8. if the predicates don't match you can skip it
+                    if state_proposition[0] != pos_precon[0]:
+                        continue
+                    # FIXME: is it OK to add substitutions in place or do we need to copy and extend them as this has?
+                    # extend the substitution such that the state_proposition and the positive_preconditions match
+                    # a substitution is a dict of variables and the values that they should take on
+                    # 9. add substitution: sigma_prime = sigma.extend()
+                    new_kwargs = extend_kwargs(action_kwargs, dict(zip(pos_precon[1:], state_proposition[1:])))
+                    if self.verbosity:
+                        print('sigma_prime = {0}'.format(new_kwargs))
+                    # 10. check to see if the new substituion is a valid action in the current state, if it is add it to applicable_actions
+                    if new_kwargs:
+                        new_preconditions = tuple(rp.copy() for rp in remaining_preconditions)
+                        new_preconditions[True].remove(pos_precon)
+                        self.add_applicable_actions(action_name, applicable_actions, new_preconditions, new_kwargs)
+            return
+        self.applicable_actions = set()
+        for action_name in action_names:
+            self.add_applicable_actions(action_name, self.applicable_actions)
 
 
 class RandomProblem1(RandomWorld):
