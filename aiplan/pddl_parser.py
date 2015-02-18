@@ -1,0 +1,95 @@
+"""
+pyparsing parser definition to parse STRIPS and PDDL files for AI Planning class (coursera)
+"""
+
+import pyparsing as pp
+
+MAX_NUM_ARGS = 1000000000  # max of 1 billion arguments for any function (relation constant)
+
+# function constants are usually lowercase, that's not a firm requirement in the spec
+identifier = pp.Word( pp.alphas + "_", pp.alphanums + "-_" )
+variable   = pp.Word('?').suppress() + pp.Word(pp.alphas, pp.alphanums + '_')
+comment    = pp.OneOrMore(pp.Word(';').suppress()) + pp.restOfLine('comment')
+typ        = pp.Literal('-').suppress() + pp.Optional(pp.Word_(' ').suppress()) + identifier
+
+define       = pp.Keyword('define')   # (define (domain random-domain) ... or (define (problem random-pbl1) ...
+domain       = pp.Keyword('domain')   # (define (domain random-domain) ... 
+problem      = pp.Keyword('problem')  # (define (problem random-pbl1) ...
+header       = define | domain | problem
+
+requirements = pp.Keyword(':requirements')  # (:requirements :strips)
+strips       = pp.Keyword(':strips')        # (:requirements :strips)
+typing       = pp.Keyword(':typing')        # (:requirements :typing)
+action       = pp.Keyword(':action')       # (:action op1 ...
+parameters   = pp.Keyword(':parameters')   # :parameters (?x1 ?x2 ?x3)
+precondition = pp.Keyword(':precondition') # :precondition (and (S ?x1 ?x2) (R ?x3 ?x1)) 
+effect       = pp.Keyword(':effect')       # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
+keyword      = requirements | strips | typing | parameters | precondition | effect
+
+# keyword    = pp.Literal(":").suppress() + identifier
+
+conjunction  = pp.Keyword('and')  # :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
+disjunction  = pp.Keyword('or')   # :precondition (or (S ?x3 ?x1) (R ?x2 ?x2))
+operator     = conjunction | disjunction
+# operator = pp.Word('~&|')  # not, and, or
+
+# PPL keywords ("Relation Constants")
+
+
+# role = pp.Keyword('role')  # role(p) means that p is a player name/side in the game.
+# inpt = pp.Keyword('input') # input(t) means that t is a base proposition in the game.
+# base = pp.Keyword('base')  # base(a) means that a is an action in the game, the outcome of a turn.
+# init = pp.Keyword('init')  # init(p) means that the datum p is true in the initial state of the game.
+# next = pp.Keyword('next')  # next(p) means that the datum p is true in the next state of the game.
+# does = pp.Keyword('does')  # does(r, a) means that player r performs action a in the current state.
+# legal = pp.Keyword('legal')  # legal(r, a) means it is legal for r to play a in the current state.
+# goal = pp.Keyword('goal')  # goal(r, n) means that player the current state has utility n for player r. n must be an integer from 0 through 100.
+# terminal = pp.Keyword('terminal')  # terminal(d) means that if the datam d is true, the game has ended and no player actions are legal.
+# distinct = pp.Keyword('distinct')  # distinct(x, y) means that the values of x and y are different.
+# true = pp.Keyword('true')  # true(p) means that the datum p is true in the current state.
+
+# # GDL-II Relation Constants
+# sees = pp.Keyword('sees')  # The predicate sees(?r,?p) means that role ?r perceives ?p in the next game state.
+# random = pp.Keyword('random')  # A predefined player that choses legal moves randomly
+
+# # GDL-I and GDL-II Relation Constants
+# relation_constant = role | inpt | base | init | next | does | legal | goal | terminal | distinct | true | sees | random
+
+# # TODO: DRY this up
+# # functions (keywords that should be followed by the number of arguments indicated)
+# RELATION_CONSTANTS =  {
+#     'role': 1, 'input': 2, 'base': 1, 'init': 1, 'next': 1, 'does': 2, 'legal': 2, 'goal': 2, 'terminal': 1,  'distinct': 2, 'true': 1,
+#     'sees': 1, 'random': 1,
+#     '<=': MAX_NUM_ARGS,
+#     '&': 1,
+#     }
+
+# other tokens/terms
+# identifier = pp.Word(pp.alphas + '_', pp.alphas + pp.nums + '_')
+# # Numerical contant
+# # FIXME: too permissive -- accepts 10 numbers, "00", "01", ... "09"
+# number = (pp.Keyword('100') | pp.Word(pp.nums, min=1, max=2))
+# # the only binary operator (relationship constant?)
+# implies = pp.Keyword('<=')
+# token = (implies | variable | relation_constant | number | pp.Word(pp.alphas + pp.nums))
+
+# Define recursive grammar for nested paretheticals
+# grammar = pp.Forward()
+# expression = pp.OneOrMore(implies | variable | relation_constant | number | operator | identifier)
+# nested_parentheses = pp.nestedExpr('(', ')', content=grammar) 
+# grammar << (implies | variable | relation_constant | number | operator | identifier | nested_parentheses)
+# sentence = (expression | grammar) + (comment | pp.lineEnd.suppress() | pp.stringEnd.suppress())
+# game_description = pp.OneOrMore(comment | sentence)
+
+
+enclosed     = pp.Forward()
+nested_parens = pp.nestedExpr('(', ')', content=enclosed)
+enclosed << (keyword | (action + identifier) | comment | nested_parens)
+# expression = pp.OneOrMore(implies | variable | relation_constant | number | operator | identifier)
+# sentence = (expression | grammar) + (comment | pp.lineEnd.suppress() | pp.stringEnd.suppress())
+# domain_description = pp.OneOrMore(comment | expression)
+
+def test():
+    parsed_domain = enclosed.parseFile('random_domain.strips')
+    parsed_problem = enclosed.parseFile('random_pbl1.strips')
+    return parsed_domain, parsed_problem

@@ -108,11 +108,11 @@ class RandomWorld(object):
                },
         }
 
-    def __init__(self, initial=None, verbosity=None):
+    def __init__(self, state=None, verbosity=None):
         self.verbosity = verbosity if verbosity is not None else self.verbosity
         self.state = State()
-        if initial:
-            self.state |= initial
+        if state:
+            self.state |= state
         self.add_applicable_actions()
 
     def preconditions(self, name):
@@ -287,13 +287,13 @@ class RandomProblem1(RandomWorld):
     """
     goal = State()
 
-    def __init__(self, initial=None):
+    def __init__(self, initial=None, goal=None):
         default_initial = State([('S', 'B', 'B'), ('S', 'C', 'B'), ('S', 'A', 'C'),
                                  ('R', 'B', 'B'), ('R', 'C', 'B')])
         initial = default_initial if initial is None else initial
         super(RandomProblem1, self).__init__(initial=initial)
-        self.goal = State()
-        self.goal |= set([('S', 'A', 'A')])
+        default_goal = State([('S', 'A', 'A')])
+        self.goal = default_goal if goal is None else goal
 
     def goal_test(self):
         # TODO: can probably be simplified into a single all(self.state.get(k, False) == bool(v) for k, v ...)
