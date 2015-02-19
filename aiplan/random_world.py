@@ -57,6 +57,9 @@ defines two actions
 
 2. op2()
 """
+import pyparsing as pyp
+import os
+
 
 class State(set):
     pass
@@ -285,15 +288,36 @@ class RandomProblem1(RandomWorld):
          (R B B) (R C B))
       (:goal (and (S A A))))
     """
-    goal = State()
+    goal = State([('S', 'A', 'A')])
+    initial = State([('S', 'B', 'B'), ('S', 'C', 'B'), ('S', 'A', 'C'),
+                                     ('R', 'B', 'B'), ('R', 'C', 'B')])
 
     def __init__(self, initial=None, goal=None):
-        default_initial = State([('S', 'B', 'B'), ('S', 'C', 'B'), ('S', 'A', 'C'),
-                                 ('R', 'B', 'B'), ('R', 'C', 'B')])
-        initial = default_initial if initial is None else initial
-        super(RandomProblem1, self).__init__(initial=initial)
-        default_goal = State([('S', 'A', 'A')])
-        self.goal = default_goal if goal is None else goal
+        self.build_grammar()
+        if isinstance(initial, basestring):
+            if os.path.isfile(initial):
+                self.parse_file(initial)
+            else:
+                self.parse_str(initial)
+        else:
+            self.initial = self.initial if initial is None else State(initial)
+        super(RandomProblem1, self).__init__(state=self.initial)
+        self.goal = self.goal if goal is None else goal
+
+    def build_grammar(self):
+        self.loose_grammar = pyp.Forward()
+        self.nested_parens = pyp.nestedExpr('(', ')', content=self.loose_grammar) 
+        self.loose_grammar << (
+                 pyp.OneOrMore(pyp.Optional(':').suppress() + pyp.Word(pyp.alphanums + '-_')) 
+               | pyp.OneOrMore(pyp.Optional('?').suppress() + pyp.Word(pyp.alphanums + '-_')) 
+               | ',' 
+               | self.nested_parens)
+
+    def parse_file(self, path):
+        self.parsed_strips = self.loose_grammar.parseFile(path)
+
+    def parse_str(self, s):
+        self.parsed_strips = self.loose_grammar.parseFile(s)
 
     def goal_test(self):
         # TODO: can probably be simplified into a single all(self.state.get(k, False) == bool(v) for k, v ...)

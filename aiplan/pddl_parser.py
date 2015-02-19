@@ -97,22 +97,30 @@ def test():
 
 def sandbox():
     """Based on http://stackoverflow.com/a/4802004/623735"""
-    enclosed = pp.Forward()
-    nestedParens = pp.nestedExpr('(', ')', content=enclosed) 
-    enclosed << (
+    loose_grammar = pp.Forward()
+    nestedParens = pp.nestedExpr('(', ')', content=loose_grammar) 
+    loose_grammar << (
                  pp.OneOrMore(pp.Optional(':').suppress() + pp.Word(pp.alphanums + '-_')) 
                | pp.OneOrMore(pp.Optional('?').suppress() + pp.Word(pp.alphanums + '-_')) 
                | ',' 
                | nestedParens)
     examples = [
-        '(gimme (some (nested, nested (lists))))',
+        # definitely not PDDL-compliant, but parser does OK anyway (not strict)
+        '(some global things (:a (nested list of three varibles (?list0 ?list1 ?list2))))',
+        # this is a valid line of STRIPS (subset of PDDL grammar?)
         '(:requirements :strips)',
+        # another valid line of STRIPS (subset of PDDL grammar?)
         '(define (domain random-domain))',
+        # a complete (if simple) STRIPS problem definition from coursera AI Planning class, HW wk2
         r'''
-            (:init
-                (S B B) (S C B) (S A C)
-                (R B B) (R C B))
+            (define (problem random-pbl1)
+              (:domain random-domain)
+              (:init
+                 (S B B) (S C B) (S A C)
+                 (R B B) (R C B))
+              (:goal (and (S A A))))
         ''',
+        # a complete STRIPS domain definition from coursera AI Planning class, HW wk2
         r'''
         (define (domain random-domain)
           (:requirements :strips)
@@ -129,7 +137,7 @@ def sandbox():
     ans = []
     for ex in examples:
         try:
-            ans += [enclosed.parseString(ex).asList()]
+            ans += [loose_grammar.parseString(ex).asList()]
             print(ans[-1])
         except:
             print_exc()
