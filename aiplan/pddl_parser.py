@@ -8,15 +8,39 @@ import pyparsing as pp
 MAX_NUM_ARGS = 1000000000  # max of 1 billion arguments for any function (relation constant)
 
 # function constants are usually lowercase, that's not a firm requirement in the spec
-identifier = pp.Word( pp.alphas + "_", pp.alphanums + "-_" )
+identifier = pp.Word( pp.alphas, pp.alphanums + "-_" )
 variable   = pp.Word('?').suppress() + pp.Word(pp.alphas, pp.alphanums + '_')
 comment    = pp.OneOrMore(pp.Word(';').suppress()) + pp.restOfLine('comment')
 typ        = pp.Literal('-').suppress() + pp.Optional(pp.Literal(' ').suppress()) + identifier
+
+state = pp.OneOrMore(pp.Literal('(').suppress() + pp.Group(pp.OneOrMore(identifier)) + pp.Literal(')').suppress())
+state_conjunction = (pp.Literal('(') + pp.Keyword('and')).suppress() +  state + pp.Literal(')').suppress()
 
 define       = pp.Keyword('define')   # (define (domain random-domain) ... or (define (problem random-pbl1) ...
 domain       = pp.Keyword('domain')   # (define (domain random-domain) ... 
 problem      = pp.Keyword('problem')  # (define (problem random-pbl1) ...
 header       = define | domain | problem
+
+init       = pp.Literal(':').suppress() + pp.Keyword('init')         # (:requirements :strips)
+goal       = pp.Literal(':').suppress() + pp.Keyword('goal')        # (:requirements :typing)
+
+state_name = pp.Literal('(').suppress() + (init | goal)
+state_value = (state_conjunction | state)  + pp.Literal(')').suppress() # |
+                  # pp.dictOf((init | goal), state))
+# FIXME: this runs forever!
+named_states = pp.dictOf(state_name, state_value)
+s = '(:init\n     (S B B) (S C B) (S A C)\n     (R B B) (R C B))'
+s = r'''(:init
+        (S B B) (S C B) (S A C)
+        (R B B) (R C B))
+     (:goal (and (S A A)))'''
+print('Input strips string:')
+print(s)
+parsed_states = named_states.parseString(s)
+print('parsed init state:')
+print(parsed_states.asDict())
+# print('parsed goal state:')
+# print(parsed_states.goal.asList())
 
 requirements = pp.Keyword(':requirements')  # (:requirements :strips)
 strips       = pp.Keyword(':strips')        # (:requirements :strips)
@@ -25,7 +49,7 @@ action       = pp.Keyword(':action')       # (:action op1 ...
 parameters   = pp.Keyword(':parameters')   # :parameters (?x1 ?x2 ?x3)
 precondition = pp.Keyword(':precondition') # :precondition (and (S ?x1 ?x2) (R ?x3 ?x1)) 
 effect       = pp.Keyword(':effect')       # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
-keyword      = requirements | strips | typing | parameters | precondition | effect
+keyword      = requirements | strips | typing | parameters | precondition | effect | init | goal
 
 # keyword    = pp.Literal(":").suppress() + identifier
 
@@ -102,6 +126,8 @@ def sandbox():
     loose_grammar << (
                  pp.OneOrMore(pp.Optional(':').suppress() + pp.Word(pp.alphanums + '-_')) 
                | pp.OneOrMore(pp.Optional('?').suppress() + pp.Word(pp.alphanums + '-_')) 
+               | initial
+               | goal
                | ',' 
                | nestedParens)
     examples = [

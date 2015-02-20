@@ -313,6 +313,9 @@ class RandomProblem1(RandomWorld):
                | ',' 
                | self.nested_parens)
 
+    def ingest_parsed_strips():
+        for 
+        self.initial = State()
     def parse_file(self, path):
         self.parsed_strips = self.loose_grammar.parseFile(path)
 
