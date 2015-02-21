@@ -15,7 +15,6 @@ comment    = pp.OneOrMore(pp.Word(';').suppress()) + pp.restOfLine('comment')
 typ        = pp.Literal('-').suppress() + pp.Optional(pp.Literal(' ').suppress()) + identifier
 relation_literal = pp.Literal('(').suppress() + pp.Group(pp.OneOrMore(identifier)) + pp.Literal(')').suppress()
 
-state             = pp.OneOrMore(relation)
 state = pp.OneOrMore(pp.Literal('(').suppress() + pp.Group(pp.OneOrMore(identifier)) + pp.Literal(')').suppress())
 state_conjunction = (pp.Literal('(') + pp.Keyword('and')).suppress() +  state + pp.Literal(')').suppress()
 
@@ -28,6 +27,7 @@ goal       = pp.Literal(':').suppress() + pp.Keyword('goal')        # (:requirem
 
 state_type = pp.Literal('(').suppress() + (init | goal)
 state_value = (state_conjunction | state)  + pp.Literal(')').suppress() # |
+                  # pp.dictOf((init | goal), state))
 named_states = pp.dictOf(state_type, state_value)
 s = r'''(:init
         (S B B) (S C B) (S A C)
@@ -54,8 +54,13 @@ s = '''(define (problem random-pbl1)
             (R B B) (R C B))
           (:goal (and (S A A))))
     '''
+print('parsing complete STRIPS PDDL problem header: ' + s)
+print(problem.parseString(s).asList())
+# print('parsed goal state:')
+# print(parsed_states.goal.asList())
 
 
+domain_name =    (pp.Literal('(') + pp.Keyword('domain') ).suppress() + identifier + pp.Literal(')').suppress() 
 parameters   = pp.Keyword(':parameters')   # :parameters (?x1 ?x2 ?x3)
 precondition = pp.Keyword(':precondition') # :precondition (and (S ?x1 ?x2) (R ?x3 ?x1)) 
 effect       = pp.Keyword(':effect')       # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
@@ -69,41 +74,6 @@ named_special_state = pp.dictOf((init | goal), state_literal)
 # named_states = pp.dictOf(state_label, state_value)
 
 # named_expressions = pp.dictOf(expr_type, state_value)
-
-s = r'''(:init
-        (S B B) (S C B) (S A C)
-        (R B B) (R C B))
-     (:goal (and (S A A)))'''
-print('Input strips string:')
-print(s)
-parsed_states = named_special_states.parseString(s)
-print('parsed init state:')
-print(parsed_states.asDict())
-
-
-domain_name =    (pp.Literal('(') + pp.Keyword('domain') ).suppress() + identifier + pp.Literal(')').suppress() 
-domain_import =  (pp.Literal('(') + pp.Keyword(':domain')).suppress() + identifier + pp.Literal(')').suppress() 
-
-problem_name = (pp.Literal('(') + pp.Keyword('problem')).suppress() + identifier + pp.Literal(')').suppress() 
-
-
-problem = (
-           (pp.Literal('(') + pp.Keyword('define')).suppress() 
-           + problem_name 
-           + domain_import
-           )
-           # + named_states
-           # + pp.Literal(')').suppress()
-           # )
-
-s = '''(define (problem random-pbl1) (:domain random-domain)
-          (:init
-            (S B B) (S C B) (S A C)
-            (R B B) (R C B))
-          (:goal (and (S A A))))
-    '''
-print('parsing problem header: ' + s)
-print(problem.parseString(s).asList())
 
 
 domain =  (
@@ -135,6 +105,9 @@ requirements = pp.Keyword(':requirements')  # (:requirements :strips)
 strips       = pp.Keyword(':strips')        # (:requirements :strips)
 typing       = pp.Keyword(':typing')        # (:requirements :typing)
 action       = pp.Keyword(':action')       # (:action op1 ...
+parameters   = pp.Keyword(':parameters')   # :parameters (?x1 ?x2 ?x3)
+precondition = pp.Keyword(':precondition') # :precondition (and (S ?x1 ?x2) (R ?x3 ?x1)) 
+effect       = pp.Keyword(':effect')       # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
 keyword      = requirements | strips | typing | parameters | precondition | effect | init | goal
 
 # keyword    = pp.Literal(":").suppress() + identifier
