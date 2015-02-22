@@ -75,47 +75,18 @@ def extend_kwargs(kwargs, more_kwargs):
     extended_kwargs.update(more_kwargs)
     return extended_kwargs
 
-class RandomWorld(object):
-    """(define (domain random-domain)
-      (:requirements :strips)
-      (:action op1
-        :parameters (?x1 ?x2 ?x3)
-        :precondition (and (S ?x1 ?x2) (R ?x3 ?x1))
-        :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))  ; FIXME: Does "not" mean to negate the existing state or just set it to False?
-      (:action op2
-        :parameters (?x1 ?x2 ?x3)
-        :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
-        :effect (and (S ?x1 ?x3) (not (S ?x3 ?x1)))))  ; FIXME: Does "not" mean to negate the existing state or just set it to False?
-    """
-    verbosity = 1
-    actions =  {
-        'op1': {
-                'precondition': {('S', 0, 1): True, ('R', 2, 0): True},
-                'effect': {('S', 1, 0): True, ('S', 0, 2): True, ('R', 2, 0): False},
-            },
-        'op2': {'precondition': {('S', 2, 0): True, ('R', 1, 1): True},
-                'effect': {('S', 0, 2): True, ('S', 2, 0): False}},
-        }
-    actions =  {
-        'op1': {
-            'positive_preconditions': set([('S', 'x1', 'x2'), ('R', 'x3', 'x1')]),
-            'negative_preconditions': set(),
-            'positive_effects': set([('S', 'x2', 'x1'), ('S', 'x1', 'x3')]),  # add-list
-            'negative_effects': set([('R', 'x3', 'x1')]),                     # delete-list
-               },
-        'op2': {
-            'positive_preconditions': set([('S', 'x3', 'x1'), ('R', 'x2', 'x2')]),
-            'negative_preconditions': set(),
-            'positive_effects': set([('S', 'x1', 'x3')]),                     # add-list
-            'negative_effects': set([('S', 'x3', 'x1')]),                     # delete-list
-               },
-        }
+class World(object):
 
-    def __init__(self, state=None, verbosity=None):
+    def __init__(self, state=None, actions=None, verbosity=None):
         self.verbosity = verbosity if verbosity is not None else self.verbosity
-        self.state = State()
-        if state:
-            self.state |= state
+
+        self.actions = {}   # perhaps there should be Domain class separate from the World class 
+        if actions:
+            self.actions = dict(actions)
+
+        self.state = State(state) or State()
+
+        self.applicable_actions = set()  # this belongs in the World or State class (not the Domain class)
         self.add_applicable_actions()
 
     def preconditions(self, name):
@@ -279,6 +250,52 @@ class RandomWorld(object):
         for action_name in action_names:
             self.add_applicable_actions(action_name, self.applicable_actions)
 
+class RandomWorld(World):
+    """(define (domain random-domain)
+      (:requirements :strips)
+      (:action op1
+        :parameters (?x1 ?x2 ?x3)
+        :precondition (and (S ?x1 ?x2) (R ?x3 ?x1))
+        :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))  ; FIXME: Does "not" mean to negate the existing state or just set it to False?
+      (:action op2
+        :parameters (?x1 ?x2 ?x3)
+        :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
+        :effect (and (S ?x1 ?x3) (not (S ?x3 ?x1)))))  ; FIXME: Does "not" mean to negate the existing state or just set it to False?
+    """
+    verbosity = 1
+    actions =  {
+        'op1': {
+                'precondition': {('S', 0, 1): True, ('R', 2, 0): True},
+                'effect': {('S', 1, 0): True, ('S', 0, 2): True, ('R', 2, 0): False},
+            },
+        'op2': {'precondition': {('S', 2, 0): True, ('R', 1, 1): True},
+                'effect': {('S', 0, 2): True, ('S', 2, 0): False}},
+        }
+    actions =  {
+        'op1': {
+            'positive_preconditions': set([('S', 'x1', 'x2'), ('R', 'x3', 'x1')]),
+            'negative_preconditions': set(),
+            'positive_effects': set([('S', 'x2', 'x1'), ('S', 'x1', 'x3')]),  # add-list
+            'negative_effects': set([('R', 'x3', 'x1')]),                     # delete-list
+               },
+        'op2': {
+            'positive_preconditions': set([('S', 'x3', 'x1'), ('R', 'x2', 'x2')]),
+            'negative_preconditions': set(),
+            'positive_effects': set([('S', 'x1', 'x3')]),                     # add-list
+            'negative_effects': set([('S', 'x3', 'x1')]),                     # delete-list
+               },
+        }
+
+    def __init__(self, state=None, actions=None, verbosity=None):
+        # because these are defined as class vars
+        if actions is not None:
+            self.actions = dict(actions)
+        return super(RandomWorld, self).__init__(state=state, actions=self.actions, verbosity=verbosity)
+
+
+class Problem(World):
+    pass
+
 
 class RandomProblem1(RandomWorld):
     """(define (problem random-pbl1)
@@ -313,9 +330,9 @@ class RandomProblem1(RandomWorld):
                | ',' 
                | self.nested_parens)
 
-    def ingest_parsed_strips():
-        for 
+    def ingest_parsed_strips(self, parse_results):
         self.initial = State()
+
     def parse_file(self, path):
         self.parsed_strips = self.loose_grammar.parseFile(path)
 
