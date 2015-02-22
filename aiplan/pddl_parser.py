@@ -64,7 +64,7 @@ precondition       = Literal('(').suppress() + Keyword('and').suppress() + OneOr
 effect             = Literal('(').suppress() + Keyword('and').suppress() + OneOrMore(predicate | notted_predicate) + Literal(')').suppress()     # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
 #keyword            = requirements + strips_req | typing_req | parameters | precondition | effect | init | goal
 actions  = dictOf((Literal('(') + Keyword(':action')).suppress() + identifier,
-                dictOf(Keyword(':parameters') | Keyword(':precondition') | Keyword(':effect'),
+                dictOf(Literal(':').suppress() + (Keyword('parameters') | Keyword('precondition') | Keyword('effect')),
                          (arguments | precondition | effect) ) + Literal(')').suppress()
            )  
 #           + Literal(')'))    # (:action op1 ...
@@ -133,7 +133,7 @@ s = '''(define (domain random-domain)
 '''
 
 # wrapping a conjunction (x | y) with a `OneOrMore()` and an Optional(comment) within x or y causes infinite recursion
-grammar = domain | problem | (domain + problem)
+grammar = (domain + problem) | domain | problem
 
 def test(path_or_str=None):
     import os
@@ -158,8 +158,8 @@ def test(path_or_str=None):
                   (:goal (and (S A A))))
 
             '''
-    ans = grammar.parseString(s)
-    assert(ans.asDict()['random-domain'].asDict()['op1'].asDict()[':effect'].asList() == [
+    ans = grammar.parseString(s, parseAll=True)
+    assert(ans['random-domain']['op1']['effect'].asList() == [
         ['S', '?x2', '?x1'], ['S', '?x1', '?x3'], 'not', ['R', '?x3', '?x1']])
     if not path_or_str:
         return ans
