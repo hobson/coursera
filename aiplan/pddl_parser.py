@@ -3,87 +3,123 @@ pyparsing parser definition to parse STRIPS and PDDL files for AI Planning class
 """
 from traceback import print_exc
 
-import pyparsing as pp
+from pyparsing import Optional, Keyword, Literal, Word
+from pyparsing import Combine, Group, OneOrMore, restOfLine, dictOf
+from pyparsing import alphas, alphanums
+from pyparsing import nestedExpr, Forward
 
 MAX_NUM_ARGS = 1000000000  # max of 1 billion arguments for any function (relation constant)
 
 # function constants are usually lowercase, that's not a firm requirement in the spec
-identifier = pp.Word( pp.alphas, pp.alphanums + "-_" )
-variable   = pp.Word('?').suppress() + pp.Word(pp.alphas, pp.alphanums + '_')
-arguments  = pp.Literal('(').suppress() +  pp.Group(pp.OneOrMore(variable)) + pp.Literal(')').suppress()
-comment    = pp.OneOrMore(pp.Word(';').suppress()) + pp.restOfLine('comment')
-typ        = pp.Literal('-').suppress() + pp.Optional(pp.Literal(' ').suppress()) + identifier
-relation_literal = pp.Literal('(').suppress() + pp.Group(pp.OneOrMore(identifier)) + pp.Literal(')').suppress()
+identifier = Word( alphas, alphanums + "-_" )
+variable   = Combine(Literal('?') + Word(alphas, alphanums + '_'))
+comment    = Optional(OneOrMore(Word(';').suppress()) + restOfLine('comment')).suppress()
+# typ        = Literal('-').suppress() + Optional(Literal(' ').suppress()) + identifier
 
-state = pp.OneOrMore(pp.Literal('(').suppress() + pp.Group(pp.OneOrMore(identifier)) + pp.Literal(')').suppress())
-state_conjunction = (pp.Literal('(') + pp.Keyword('and')).suppress() +  state + pp.Literal(')').suppress()
+# All mean the same thing: ground predicate, ground atom, ground_literal
+# Any formula whose arguments are all ground terms (literals = non-variables)
+ground_predicate = Literal('(').suppress() + Group(OneOrMore(identifier)) + Literal(')').suppress() + comment
+arguments = sequence_of_variables = Literal('(').suppress() + Group(OneOrMore(variable)) + Literal(')').suppress()
+# Norvig/Russel tend to call this a "fluent"
+predicate        = Literal('(').suppress() + Group(identifier + OneOrMore(variable)) + Literal(')').suppress()
+notted_predicate = Literal('(').suppress() + Keyword('not') + predicate + Literal(')').suppress()
 
-expr         = pp.Literal('(').suppress() + pp.Group(identifier + pp.OneOrMore(variable)) + pp.Literal(')').suppress()
-notted_expr  = pp.Literal('(').suppress() + pp.Keyword('not') + expr + pp.Literal(')').suppress()
-expr_set     =  pp.Literal('(').suppress() + pp.OneOrMore(expr) + pp.Literal(')').suppress()
+# a set of ground atoms/predicates is a state, they are all presumed to be ANDed together (conjunction)
+state_conjunction_implicit = OneOrMore(ground_predicate)
+state_conjunction_explicit = (Literal('(') + Keyword('and')).suppress() + state_conjunction_implicit + Literal(')').suppress()
+state = state_conjunction_explicit | state_conjunction_implicit
 
-init       = pp.Literal(':').suppress() + pp.Keyword('init')         # (:requirements :strips)
-goal       = pp.Literal(':').suppress() + pp.Keyword('goal')        # (:requirements :typing)
+function_arguments  = Literal('(').suppress() +  Group(OneOrMore(variable)) + Literal(')').suppress()
+expr         = Literal('(').suppress() + Group(identifier + OneOrMore(variable)) + Literal(')').suppress()
+notted_expr  = Literal('(').suppress() + Keyword('not') + expr + Literal(')').suppress()
+expr_set     =  Literal('(').suppress() + OneOrMore(expr) + Literal(')').suppress()
 
-state_type = pp.Literal('(').suppress() + (init | goal)
-state_value = (state_conjunction | state)  + pp.Literal(')').suppress() # |
-                  # pp.dictOf((init | goal), state))
-named_states = pp.dictOf(state_type, state_value)
+init       = Literal(':').suppress() + Keyword('init')         # (:requirements :strips)
+goal       = Literal(':').suppress() + Keyword('goal')        # (:requirements :typing)
+
+init_goal_states = dictOf(Literal('(').suppress() + (init | goal),
+                             state + Literal(')').suppress() + comment ) 
 s = r'''(:init
         (S B B) (S C B) (S A C)
         (R B B) (R C B))
      (:goal (and (S A A)))'''
 print('Input strips string:')
 print(s)
-parsed_states = named_states.parseString(s)
+parsed_states = init_goal_states.parseString(s)
 print('parsed init state:')
 print(parsed_states.asDict())
-problem_name = (pp.Literal('(') + pp.Keyword('problem')).suppress() + identifier + pp.Literal(')').suppress() 
-problem_domain =  (pp.Literal('(') + pp.Keyword(':domain')).suppress() + identifier + pp.Literal(')').suppress() 
 
-problem = (
-           (pp.Literal('(') + pp.Keyword('define')).suppress() + problem_name 
+problem_name = (Literal('(') + Keyword('problem')).suppress() + identifier + Literal(')').suppress() 
+problem_domain =  (Literal('(') + Keyword(':domain')).suppress() + identifier + Literal(')').suppress() 
+problem = comment + ( comment +
+           (Literal('(') + Keyword('define')).suppress() + problem_name 
            + problem_domain
-           + named_states
-           + pp.Literal(')').suppress()
-           )
-s = '''(define (problem random-pbl1)
-        (:domain random-domain)
-          (:init
-            (S B B) (S C B) (S A C)
-            (R B B) (R C B))
-          (:goal (and (S A A))))
-    '''
-print('parsing complete STRIPS PDDL problem header: ' + s)
-print(problem.parseString(s).asList())
+           + init_goal_states
+           + Literal(')').suppress()
+           ) + comment
+
 # print('parsed goal state:')
 # print(parsed_states.goal.asList())
+precondition       = Literal('(').suppress() + Keyword('and').suppress() + OneOrMore(predicate) + Literal(')').suppress()  # :precondition (and (S ?x1 ?x2) (R ?x3 ?x1)) 
+effect             = Literal('(').suppress() + Keyword('and').suppress() + OneOrMore(predicate | notted_predicate) + Literal(')').suppress()     # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
+#keyword            = requirements + strips_req | typing_req | parameters | precondition | effect | init | goal
+actions  = dictOf((Literal('(') + Keyword(':action')).suppress() + identifier,
+                dictOf(Keyword(':parameters') | Keyword(':precondition') | Keyword(':effect'),
+                         (arguments | precondition | effect) ) + Literal(')').suppress()
+           )  
+#           + Literal(')'))    # (:action op1 ...
+
+s =  '''(:action op1
+           :parameters (?x1 ?x2 ?x3)
+           :precondition (and (S ?x1 ?x2) (R ?x3 ?x1))
+           :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
+     '''
+print(actions.parseString(s))
+
+domain_name =    (Literal('(') + Keyword('domain') ).suppress() + identifier + Literal(')').suppress() 
+domain_requirements = OneOrMore(   Literal('(').suppress()
+                                    # dictOf( doesn't work like I'd like here
+                                    + (Keyword(':requirements')  # (:requirements :strips)
+                                       + OneOrMore(Literal(':').suppress() + (Keyword('strips')  | Keyword('typing'))))
+                                    + Literal(')').suppress()
+                                  )     # (:requirements :strips)
+domain =    dictOf((Literal('(') + Keyword('define')).suppress() + domain_name,
+                domain_requirements
+                + actions
+             + Literal(')').suppress()
+            )
+s = '''(define (domain random-domain)
+        (:requirements :strips)
+  (:action op1
+    :parameters (?x1 ?x2 ?x3)
+    :precondition (and (S ?x1 ?x2) (R ?x3 ?x1))
+    :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
+)
+    '''
+s = '''            (define (domain random-domain)
+              (:requirements :strips)
+              (:action op1
+                :parameters (?x1 ?x2 ?x3)
+                :precondition (and (S ?x1 ?x2) (R ?x3 ?x1))
+                :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
+              (:action op2
+                :parameters (?x1 ?x2 ?x3)
+                :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
+                :effect (and (S ?x1 ?x3) (not (S ?x3 ?x1))))
+)
+'''
+print('Input STRIPS string:')
+print(s)
+parsed_domain = domain.parseString(s)
+print(parsed_domain)
+
+# state_label = Literal('(').suppress() + (init | goal)
+# expr_type  = Literal('(').suppress() + (parameters | precondition | effect)
+# variable_state = (notted_expr | expr)  + Literal(')').suppress() # |
+                  # dictOf((init | goal), state))
 
 
-domain_name =    (pp.Literal('(') + pp.Keyword('domain') ).suppress() + identifier + pp.Literal(')').suppress() 
-parameters   = pp.Keyword(':parameters')   # :parameters (?x1 ?x2 ?x3)
-precondition = pp.Keyword(':precondition') # :precondition (and (S ?x1 ?x2) (R ?x3 ?x1)) 
-effect       = pp.Keyword(':effect')       # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
 
-state_label = pp.Literal('(').suppress() + (init | goal)
-expr_type  = pp.Literal('(').suppress() + (parameters | precondition | effect)
-variable_state = (notted_expr | expr)  + pp.Literal(')').suppress() # |
-                  # pp.dictOf((init | goal), state))
-state_literal = relation_literal
-named_special_state = pp.dictOf((init | goal), state_literal)
-# named_states = pp.dictOf(state_label, state_value)
-
-# named_expressions = pp.dictOf(expr_type, state_value)
-
-
-domain =  (
-           (pp.Literal('(') + pp.Keyword('define')).suppress() + domain_name 
-            + pp.Literal(')').suppress()
-           )
-
-s = '(define (domain random-domain))'
-print('parsing domain header: ' + s)
-print(domain.parseString(s).asList())
 s = '''(define (domain random-domain)
   (:requirements :strips)
   (:action op1
@@ -96,95 +132,59 @@ s = '''(define (domain random-domain)
     :effect (and (S ?x1 ?x3) (not (S ?x3 ?x1)))))
 '''
 
+# wrapping a conjunction (x | y) with a `OneOrMore()` and an Optional(comment) within x or y causes infinite recursion
+grammar = domain | problem | (domain + problem)
 
+def test(path_or_str=None):
+    import os
 
-# print('parsed goal state:')
-# print(parsed_states.goal.asList())
+    path_or_str = path_or_str or '''
+            (define (domain random-domain)
+              (:requirements :strips)
+              (:action op1
+                :parameters (?x1 ?x2 ?x3)
+                :precondition (and (S ?x1 ?x2) (R ?x3 ?x1))
+                :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
+              (:action op2
+                :parameters (?x1 ?x2 ?x3)
+                :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
+                :effect (and (S ?x1 ?x3) (not (S ?x3 ?x1)))))
 
-requirements = pp.Keyword(':requirements')  # (:requirements :strips)
-strips       = pp.Keyword(':strips')        # (:requirements :strips)
-typing       = pp.Keyword(':typing')        # (:requirements :typing)
-action       = pp.Keyword(':action')       # (:action op1 ...
-parameters   = pp.Keyword(':parameters')   # :parameters (?x1 ?x2 ?x3)
-precondition = pp.Keyword(':precondition') # :precondition (and (S ?x1 ?x2) (R ?x3 ?x1)) 
-effect       = pp.Keyword(':effect')       # :effect (and (S ?x2 ?x1) (S ?x1 ?x3) (not (R ?x3 ?x1))))
-keyword      = requirements | strips | typing | parameters | precondition | effect | init | goal
+            (define (problem random-pbl1)
+                (:domain random-domain)
+                  (:init
+                    (S B B) (S C B) (S A C)
+                    (R B B) (R C B))
+                  (:goal (and (S A A))))
 
-# keyword    = pp.Literal(":").suppress() + identifier
+            '''
+    return grammar.parseString(path_or_str)
 
-conjunction  = pp.Keyword('and')  # :precondition (and (S ?x3 ?x1) (R ?x2 ?x2))
-disjunction  = pp.Keyword('or')   # :precondition (or (S ?x3 ?x1) (R ?x2 ?x2))
-operator     = conjunction | disjunction
-# operator = pp.Word('~&|')  # not, and, or
+    if isinstance(path_or_str, basestring):
+        if os.path.isfile(path_or_str):
+            print('Parsing STRIPS file at: ' + path_or_str)
+            s = open(path_or_str, 'r').read()
+            if os.path.isfile(s):
+                raise ValueError('path_or_str must not be a path to a file that contains another valid path!\n' + path_or_str )
+            return test(s)  # a file whos contents is a path to itself
+        else:
+            print('Parsing STRIPS PDDL string: ' + path_or_str)
+            return grammar.parseString(path_or_str)
+    elif isinstance(path_or_str, (list, tuple)):
+        return [test(p) for p in path_or_str]
+    return False
 
-# PPL keywords ("Relation Constants")
+if __name__ is '__main__':
+    print(test())
 
-
-# role = pp.Keyword('role')  # role(p) means that p is a player name/side in the game.
-# inpt = pp.Keyword('input') # input(t) means that t is a base proposition in the game.
-# base = pp.Keyword('base')  # base(a) means that a is an action in the game, the outcome of a turn.
-# init = pp.Keyword('init')  # init(p) means that the datum p is true in the initial state of the game.
-# next = pp.Keyword('next')  # next(p) means that the datum p is true in the next state of the game.
-# does = pp.Keyword('does')  # does(r, a) means that player r performs action a in the current state.
-# legal = pp.Keyword('legal')  # legal(r, a) means it is legal for r to play a in the current state.
-# goal = pp.Keyword('goal')  # goal(r, n) means that player the current state has utility n for player r. n must be an integer from 0 through 100.
-# terminal = pp.Keyword('terminal')  # terminal(d) means that if the datam d is true, the game has ended and no player actions are legal.
-# distinct = pp.Keyword('distinct')  # distinct(x, y) means that the values of x and y are different.
-# true = pp.Keyword('true')  # true(p) means that the datum p is true in the current state.
-
-# # GDL-II Relation Constants
-# sees = pp.Keyword('sees')  # The predicate sees(?r,?p) means that role ?r perceives ?p in the next game state.
-# random = pp.Keyword('random')  # A predefined player that choses legal moves randomly
-
-# # GDL-I and GDL-II Relation Constants
-# relation_constant = role | inpt | base | init | next | does | legal | goal | terminal | distinct | true | sees | random
-
-# # TODO: DRY this up
-# # functions (keywords that should be followed by the number of arguments indicated)
-# RELATION_CONSTANTS =  {
-#     'role': 1, 'input': 2, 'base': 1, 'init': 1, 'next': 1, 'does': 2, 'legal': 2, 'goal': 2, 'terminal': 1,  'distinct': 2, 'true': 1,
-#     'sees': 1, 'random': 1,
-#     '<=': MAX_NUM_ARGS,
-#     '&': 1,
-#     }
-
-# other tokens/terms
-# identifier = pp.Word(pp.alphas + '_', pp.alphas + pp.nums + '_')
-# # Numerical contant
-# # FIXME: too permissive -- accepts 10 numbers, "00", "01", ... "09"
-# number = (pp.Keyword('100') | pp.Word(pp.nums, min=1, max=2))
-# # the only binary operator (relationship constant?)
-# implies = pp.Keyword('<=')
-# token = (implies | variable | relation_constant | number | pp.Word(pp.alphas + pp.nums))
-
-# Define recursive grammar for nested paretheticals
-# grammar = pp.Forward()
-# expression = pp.OneOrMore(implies | variable | relation_constant | number | operator | identifier)
-# nested_parentheses = pp.nestedExpr('(', ')', content=grammar) 
-# grammar << (implies | variable | relation_constant | number | operator | identifier | nested_parentheses)
-# sentence = (expression | grammar) + (comment | pp.lineEnd.suppress() | pp.stringEnd.suppress())
-# game_description = pp.OneOrMore(comment | sentence)
-
-
-enclosed     = pp.Forward()
-nested_parens = pp.nestedExpr('(', ')', content=enclosed)
-enclosed << (keyword | (action + identifier) | comment | nested_parens)
-# expression = pp.OneOrMore(implies | variable | relation_constant | number | operator | identifier)
-# sentence = (expression | grammar) + (comment | pp.lineEnd.suppress() | pp.stringEnd.suppress())
-# domain_description = pp.OneOrMore(comment | expression)
-
-def test():
-    parsed_domain = enclosed.parseFile('random_domain.strips')
-    parsed_problem = enclosed.parseFile('random_pbl1.strips')
-    return parsed_domain, parsed_problem
 
 def sandbox():
     """Based on http://stackoverflow.com/a/4802004/623735"""
-    loose_grammar = pp.Forward()
-    nestedParens = pp.nestedExpr('(', ')', content=loose_grammar) 
+    loose_grammar = Forward()
+    nestedParens = nestedExpr('(', ')', content=loose_grammar) 
     loose_grammar << (
-                 pp.OneOrMore(pp.Optional(':').suppress() + pp.Word(pp.alphanums + '-_')) 
-               | pp.OneOrMore(pp.Optional('?').suppress() + pp.Word(pp.alphanums + '-_')) 
+                 OneOrMore(Optional(':').suppress() + Word(alphanums + '-_')) 
+               | OneOrMore(Optional('?').suppress() + Word(alphanums + '-_')) 
                | init
                | goal
                | ',' 
@@ -227,3 +227,5 @@ def sandbox():
         except:
             print_exc()
     return ans
+
+
