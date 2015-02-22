@@ -11,18 +11,18 @@ from pyparsing import nestedExpr, Forward
 MAX_NUM_ARGS = 1000000000  # max of 1 billion arguments for any function (relation constant)
 
 # function constants are usually lowercase, that's not a firm requirement in the spec
-identifier = Word( alphas, alphanums + "-_" )('identifier')
-variable   = Combine(Literal('?') + Word(alphas, alphanums + '_'))('variable')
-comment    = Optional(OneOrMore(Word(';').suppress()) + restOfLine('comment')('comment')).suppress()
+identifier = Word( alphas, alphanums + "-_" )
+variable   = Combine(Literal('?') + Word(alphas, alphanums + '_'))
+comment    = Optional(OneOrMore(Word(';').suppress()) + restOfLine('comment')).suppress()
 # typ        = Literal('-').suppress() + Optional(Literal(' ').suppress()) + identifier
 
 # All mean the same thing: ground predicate, ground atom, ground_literal
 # Any formula whose arguments are all ground terms (literals = non-variables)
-ground_predicate = Literal('(').suppress() + Group(OneOrMore(identifier))('ground_predicate') + Literal(')').suppress() + comment
-arguments = sequence_of_variables = Literal('(').suppress() + Group(OneOrMore(variable)('arguments')) + Literal(')').suppress()
+ground_predicate = Literal('(').suppress() + Group(OneOrMore(identifier)) + Literal(')').suppress() + comment
+arguments = sequence_of_variables = Literal('(').suppress() + Group(OneOrMore(variable)) + Literal(')').suppress()
 # Norvig/Russel tend to call this a "fluent"
-predicate        = Literal('(').suppress() + Group(identifier + OneOrMore(variable))('add_list') + Literal(')').suppress()
-notted_predicate = Literal('(').suppress() + Keyword('not') + predicate('delete_list') + Literal(')').suppress()
+predicate        = Literal('(').suppress() + Group(identifier + OneOrMore(variable)) + Literal(')').suppress()
+notted_predicate = Literal('(').suppress() + Keyword('not') + predicate + Literal(')').suppress()
 
 # a set of ground atoms/predicates is a state, they are all presumed to be ANDed together (conjunction)
 state_conjunction_implicit = OneOrMore(ground_predicate)
