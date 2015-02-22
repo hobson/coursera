@@ -150,9 +150,9 @@ def shuffled(seq):
 
     Maintains the type of sequence (useful for shuffling elements in an immutable tuple)
 
-    >>> set(shuffle([1, 2, 3]))
+    >>> set(shuffled([1, 2, 3]))
     {1, 2, 3}
-    >>> len(shuffle(range(5)))
+    >>> len(shuffled(range(5)))
     5
     """
     typ = None
@@ -187,10 +187,14 @@ class EightPuzzleProblem(Problem):
         state, if there is a unique goal.  Your subclass's constructor can add
         other arguments."""
         if initial:
-            self.N2 = len(initial)
+            if isinstance(initial, (int, float)):
+                self.N2 = int(initial)
+                initial = None
+            else:
+                self.N2 = len(initial)
         else:
             self.N2 = 9
-        # FIXME: allow non-square boards
+        # TODO: allow non-square boards
         self.N = int(self.N2 ** .5)
         self.digits = int((self.N2-1)/10)
         self.initial = range(self.N2)
@@ -251,8 +255,14 @@ def distance((ax, ay), (bx, by)):
     return math.hypot((ax - bx), (ay - by))
 
 
-def h_npuzzle_simple(node):
-    return node.depth + node.state.index(0)
+def h_npuzzle_simple(node, N2=None):
+    state = getattr(node, 'state', node)
+    N2 = N2 or h_npuzzle_simple.N2 or max(state) + 1
+    N = int(N2 ** 0.5)
+    h_npuzzle_manhattan.N2 = N2
+    #    moves so far + horizontal distance     + vertical distance
+    return node.depth + node.state.index(0) % N + node.state.index(0) / 3
+h_npuzzle_simple.N2 = None
 
 
 def h_npuzzle_manhattan(node, N2=None, verbosity=None):
@@ -268,12 +278,12 @@ def h_npuzzle_manhattan(node, N2=None, verbosity=None):
     state = getattr(node, 'state', node)
     N2 = N2 or h_npuzzle_manhattan.N2 or max(state) + 1
     h_npuzzle_manhattan.N2 = N2
+    N = int(N2 ** 0.5)
     if verbosity is None:
         verbosity = h_npuzzle_manhattan.verbosity
     else:
         verbosity = verbosity
         h_npuzzle_manhattan.verbosity = verbosity
-    N = int(N2 ** 0.5)
     distance = 0 
     for tile in range(1, N2):
         pos = state.index(tile)
@@ -285,227 +295,29 @@ h_npuzzle_manhattan.N2 = None
 h_npuzzle_manhattan.verbosity = 0
 
 
-# def IterablePriorityQueue(PriorityQueue):
-#     keys = 
-#     def put():
-#         self.keys.append()
-
-# def astar(problem, f=N_puzzle_heuristic):
-#     """Search the nodes with the lowest f scores first.
-
-#     Same as Norvig implementation but uses builtin PriorityQueue and assumes
-#     Node(state) == state == action  (a state is it's own pointer reference)
-#     You specify the function f(node) that you want to minimize; for example,
-#     if f is a heuristic estimate to the goal, then we have greedy best
-#     first search; if f is node.depth then we have breadth-first search.
-#     There is a subtlety: the line "f = memoize(f, 'f')" means that the f
-#     values will be cached on the nodes as they are computed. So after doing
-#     a best first search you can examine the f values of the path returned."""
-#     raise NotImplementedError("PriorityQueue needs a __getitem__, __setitem__, and del methods before this has a chance.")
-#     f = memoize(f, 'f')
-#     node = problem.initial
-#     if problem.goal_test(node):
-#         return node
-#     frontier = PriorityQueue()
-#     frontier.put((f(node), node))
-#     explored = set()
-#     while frontier:
-#         node = frontier.get()
-#         if problem.goal_test(node):
-#             return node
-#         explored.add(node)
-#         for child in problem.actions(node):
-#             if child not in explored and child not in frontier:
-#                 frontier.put((f(child), child))
-#             elif child in frontier:
-#                 incumbent = child
-#                 if f(child) < f(incumbent):
-#                     del frontier[incumbent]
-#                     frontier.append(child)
-#     return None
-
-
-
-# class GraphProblem(Problem):
-#     "The problem of searching a graph from one node to another."
-#     def __init__(self, initial, goal, graph):
-#         Problem.__init__(self, initial, goal)
-#         self.graph = graph
-
-#     def actions(self, A):
-#         "The actions at a graph node are just its neighbors."
-#         return self.graph.get(A).keys()
-
-#     def result(self, state, action):
-#         "The result of going to a neighbor is just that neighbor."
-#         return action
-
-#     def path_cost(self, cost_so_far, A, action, B):
-#         return cost_so_far + (self.graph.get(A,B) or infinity)
-
-#     def h(self, node):
-#         "h function is straight-line distance from a node's state to goal."
-#         locs = getattr(self.graph, 'locations', None)
-#         if locs:
-#             return int(distance(locs[node.state], locs[self.goal]))
-#         else:
-#             return infinity
-
-# class Node:
-#     """A node in a search tree. Contains a pointer to the parent (the node
-#     that this is a successor of) and to the actual state for this node. Note
-#     that if a state is arrived at by two paths, then there are two nodes with
-#     the same state.  Also includes the action that got us to this state, and
-#     the total path_cost (also known as g) to reach the node.  Other functions
-#     may add an f and h value; see best_first_graph_search and astar_search for
-#     an explanation of how the f and h values are handled. You will not need to
-#     subclass this class."""
-
-#     def __init__(self, state, parent=None, action=None, path_cost=0):
-#         "Create a search tree Node, derived from a parent by an action."
-#         update(self, state=state, parent=parent, action=action,
-#                path_cost=path_cost, depth=0)
-#         if parent:
-#             self.depth = parent.depth + 1
-
-#     def __repr__(self):
-#         return "<Node %s>" % (self.state,)
-
-#     def expand(self, problem):
-#         "List the nodes reachable in one step from this node."
-#         return [self.child_node(problem, action)
-#                 for action in problem.actions(self.state)]
-
-#     def child_node(self, problem, action):
-#         "Fig. 3.10"
-#         next = problem.result(self.state, action)
-#         return Node(next, self, action,
-#                     problem.path_cost(self.path_cost, self.state, action, next))
-
-#     def solution(self):
-#         "Return the sequence of actions to go from the root to this node."
-#         return [node.action for node in self.path()[1:]]
-
-#     def path(self):
-#         "Return a list of nodes forming the path from the root to this node."
-#         node, path_back = self, []
-#         while node:
-#             path_back.append(node)
-#             node = node.parent
-#         return list(reversed(path_back))
-
-#     # We want for a queue of nodes in breadth_first_search or
-#     # astar_search to have no duplicated states, so we treat nodes
-#     # with the same state as equal. [Problem: this may not be what you
-#     # want in other contexts.]
-
-#     def __eq__(self, other):
-#         return isinstance(other, Node) and self.state == other.state
-
-#     def __hash__(self):
-#         return hash(self.state)
-
-
-# NORVIG's original version of astar_search
-def best_first_graph_search(problem, f=h_npuzzle_manhattan):
-    """Search the nodes with the lowest f scores first.
-    You specify the function f(node) that you want to minimize; for example,
-    if f is a heuristic estimate to the goal, then we have greedy best
-    first search; if f is node.depth then we have breadth-first search.
-    There is a subtlety: the line "f = memoize(f, 'f')" means that the f
-    values will be cached on the nodes as they are computed. So after doing
-    a best first search you can examine the f values of the path returned."""
-    # f = memoize(f, 'f')
-    node = Node(problem.initial)
-    if problem.goal_test(node.state):
-        return node
-    frontier = PriorityQueue(min, f)
-    frontier.append(node)
-    explored = set()
-    while frontier:
-        node = frontier.pop()
-        if problem.goal_test(node.state):
-            return node
-        explored.add(force_hashable(node.state))
-        for child in node.expand(problem):
-            hashable_child = force_hashable(child.state)
-            if hashable_child not in explored and child not in frontier:
-                frontier.append(child)
-            elif hashable_child in frontier:
-                hashable_incumbent = frontier[hashable_child]
-                if f(hashable_child) < f(hashable_incumbent):
-                    del frontier[hashable_incumbent]
-                    frontier.append(hashable_child)
-    return None
-# END NORVIG AIMA code
-
-
-def best_first_tree_search(problem, f=h_npuzzle_manhattan):
-    """Search the nodes with the lowest f scores first.
-    You specify the function f(node) that you want to minimize; for example,
-    if f is a heuristic estimate to the goal, then we have greedy best
-    first search; if f is node.depth then we have breadth-first search.
-    There is a subtlety: the line "f = memoize(f, 'f')" means that the f
-    values will be cached on the nodes as they are computed. So after doing
-    a best first search you can examine the f values of the path returned."""
-    # f = memoize(f, 'f')
-    node = Node(problem.initial)
-    if problem.goal_test(node):
-        return node
-    # frontier = PriorityQueue(min, f)
-    # frontier.append(node)
-    frontier = BuiltinPriorityQueue()
-    frontier_set = set()
-    frontier.put((f(node), node))
-    frontier_set.add(node)
-    # explored = set()
-    while frontier:
-        print(list(frontier.queue))
-        # print(list(frontier))
-        #node0 = min((f(n[1]), n[1]) for n in frontier)[1]
-        node = frontier.get()[1]
-        frontier_set.discard(node)
-        #assert(node0.state == node.state)
-        if problem.goal_test(node):
-            return node
-        # explored.add(force_hashable(node.state))
-        for child in node.expand(problem):
-            if child not in frontier_set:
-                frontier.put((f(child), child))
-                frontier_set.add(child)
-            # else: 
-            #     incumbent = frontier[child]
-            #     if f(child) < f(incumbent):
-            #         warnings.warn("This shouldn't ever happen, child in frontier but new child has lower cost!\nchild={0}, f(child)={1}, f(incumbent)={2}".format(child, f(child), f(incumbent)))
-            #         del frontier[incumbent]
-            #         frontier.append(child)
-    return None
-
-
-
-def astar_search(problem, f=h_npuzzle_manhattan):
+def astar_search(problem, heuristic=h_npuzzle_manhattan):
     """Modified version of Norvig's A* graph search algorithm
 
     Allows unhashable states by converting them to hashable types inside Node
 
-    Search the nodes with the lowest f scores first.
-    You specify the function f(node) that you want to minimize; for example,
-    if f is a heuristic estimate to the goal, then we have greedy best
-    first search; if f is node.depth then we have breadth-first search.
-    There is a subtlety: the line "f = memoize(f, 'f')" means that the f
+    Search the nodes with the lowest heuristic scores first.
+    You specify the function heuristic(node) that you want to minimize; for example,
+    if heuristic is a heuristic estimate to the goal, then we have greedy best
+    first search; if heuristic is node.depth then we have breadth-first search.
+    There is a subtlety: the line "heuristic = memoize(heuristic, 'heuristic')" means that the heuristic
     values will be cached on the nodes as they are computed. So after doing
-    a best first search you can examine the f values of the path returned."""
-    # f = memoize(f, 'f')
+    a best first search you can examine the heuristic values of the path returned."""
+    # heuristic = memoize(heuristic, 'heuristic')
     node = Node(problem.initial)
     if problem.goal_test(node):
         return node
-    frontier = PriorityQueue(min, f)
+    frontier = PriorityQueue(min, heuristic)
     frontier.append(node)
     explored = set()
     while frontier:
         node = frontier.pop()
         if problem.goal_test(node):
-            return node
+            return node, explored
         explored.add(force_hashable(node.state))
         for child in node.expand(problem):
             hashable_child = force_hashable(child.state)
@@ -513,10 +325,10 @@ def astar_search(problem, f=h_npuzzle_manhattan):
                 frontier.append(child)
             elif hashable_child in frontier:
                 hashable_incumbent = frontier[hashable_child]
-                if f(hashable_child) < f(hashable_incumbent):
+                if heuristic(hashable_child) < heuristic(hashable_incumbent):
                     del frontier[hashable_incumbent]
                     frontier.append(hashable_child)
-    return None
+    return None, explored
 
 
 
@@ -640,4 +452,19 @@ def nodes_at_depth(problem, initial=None, depth=27, verbosity=1):
 
 initial = swap(range(9), 0, 1)
 prob = EightPuzzleProblem(initial=initial, verbosity=0)
-goal_node = astar_search(prob, f=h_npuzzle_manhattan)
+goal_2step, explored_1step = astar_search(prob, heuristic=h_npuzzle_manhattan)
+assert(len(goal_2step.path()) == 2)
+# print(goal_node.path())
+
+
+def compare():
+    initial = swap(swap(swap(swap(swap(range(9), 0, 1), 1, 2), 2, 5), 5, 4), 4, 7)
+    prob = EightPuzzleProblem(initial=initial, verbosity=0)
+    goal_manhat, explored_manhat = astar_search(prob, heuristic=h_npuzzle_manhattan)
+    # print(goal_manhattan.path())
+
+    prob = EightPuzzleProblem(initial=initial, verbosity=0)
+    goal_simple, explored_simple = astar_search(prob, heuristic=h_npuzzle_simple)
+    # print(goal_simple.path())
+    return goal_manhat, explored_manhat, goal_simple, explored_simple
+
