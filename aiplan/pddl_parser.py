@@ -11,18 +11,18 @@ from pyparsing import nestedExpr, Forward
 MAX_NUM_ARGS = 1000000000  # max of 1 billion arguments for any function (relation constant)
 
 # function constants are usually lowercase, that's not a firm requirement in the spec
-identifier = Word( alphas, alphanums + "-_" )
-variable   = Combine(Literal('?') + Word(alphas, alphanums + '_'))
-comment    = Optional(OneOrMore(Word(';').suppress()) + restOfLine('comment')).suppress()
+identifier = Word( alphas, alphanums + "-_" )('identifier')
+variable   = Combine(Literal('?') + Word(alphas, alphanums + '_'))('variable')
+comment    = Optional(OneOrMore(Word(';').suppress()) + restOfLine('comment')('comment')).suppress()
 # typ        = Literal('-').suppress() + Optional(Literal(' ').suppress()) + identifier
 
 # All mean the same thing: ground predicate, ground atom, ground_literal
 # Any formula whose arguments are all ground terms (literals = non-variables)
-ground_predicate = Literal('(').suppress() + Group(OneOrMore(identifier)) + Literal(')').suppress() + comment
-arguments = sequence_of_variables = Literal('(').suppress() + Group(OneOrMore(variable)) + Literal(')').suppress()
+ground_predicate = Literal('(').suppress() + Group(OneOrMore(identifier))('ground_predicate') + Literal(')').suppress() + comment
+arguments = sequence_of_variables = Literal('(').suppress() + Group(OneOrMore(variable)('arguments')) + Literal(')').suppress()
 # Norvig/Russel tend to call this a "fluent"
-predicate        = Literal('(').suppress() + Group(identifier + OneOrMore(variable)) + Literal(')').suppress()
-notted_predicate = Literal('(').suppress() + Keyword('not') + predicate + Literal(')').suppress()
+predicate        = Literal('(').suppress() + Group(identifier + OneOrMore(variable))('add_list') + Literal(')').suppress()
+notted_predicate = Literal('(').suppress() + Keyword('not') + predicate('delete_list') + Literal(')').suppress()
 
 # a set of ground atoms/predicates is a state, they are all presumed to be ANDed together (conjunction)
 state_conjunction_implicit = OneOrMore(ground_predicate)
@@ -138,7 +138,7 @@ grammar = domain | problem | (domain + problem)
 def test(path_or_str=None):
     import os
 
-    path_or_str = path_or_str or '''
+    s = '''
             (define (domain random-domain)
               (:requirements :strips)
               (:action op1
@@ -158,7 +158,11 @@ def test(path_or_str=None):
                   (:goal (and (S A A))))
 
             '''
-    return grammar.parseString(path_or_str)
+    ans = grammar.parseString(s)
+    assert(ans.asDict()['random-domain'].asDict()['op1'].asDict()[':effect'].asList() == [
+        ['S', '?x2', '?x1'], ['S', '?x1', '?x3'], 'not', ['R', '?x3', '?x1']])
+    if not path_or_str:
+        return ans
 
     if isinstance(path_or_str, basestring):
         if os.path.isfile(path_or_str):
