@@ -1,5 +1,6 @@
 """
-STRIPS planner uses simplified (no event) PDDL based on predicate first order logic which has relations, objects, and types of objects.
+STRIPS planner uses simplified PDDL based on predicate first order logic which has relations, objects, and types of objects.
+PDDL adds to the STRIPS syntax events and negatation of fluents/relations in states
 
 predicate = relation
 "?" prepended to variable names
@@ -57,7 +58,7 @@ defines two actions
 
 2. op2()
 """
-import pyparsing as pyp
+from pddl import grammar
 import os
 
 
@@ -265,14 +266,6 @@ class RandomWorld(World):
     verbosity = 1
     actions =  {
         'op1': {
-                'precondition': {('S', 0, 1): True, ('R', 2, 0): True},
-                'effect': {('S', 1, 0): True, ('S', 0, 2): True, ('R', 2, 0): False},
-            },
-        'op2': {'precondition': {('S', 2, 0): True, ('R', 1, 1): True},
-                'effect': {('S', 0, 2): True, ('S', 2, 0): False}},
-        }
-    actions =  {
-        'op1': {
             'positive_preconditions': set([('S', 'x1', 'x2'), ('R', 'x3', 'x1')]),
             'negative_preconditions': set(),
             'positive_effects': set([('S', 'x2', 'x1'), ('S', 'x1', 'x3')]),  # add-list
@@ -294,41 +287,14 @@ class RandomWorld(World):
 
 
 class Problem(World):
-    pass
-
-
-class RandomProblem1(RandomWorld):
-    """(define (problem random-pbl1)
-      (:domain random-domain)
-      (:init
-         (S B B) (S C B) (S A C)
-         (R B B) (R C B))
-      (:goal (and (S A A))))
-    """
-    goal = State([('S', 'A', 'A')])
-    initial = State([('S', 'B', 'B'), ('S', 'C', 'B'), ('S', 'A', 'C'),
-                                     ('R', 'B', 'B'), ('R', 'C', 'B')])
-
-    def __init__(self, initial=None, goal=None):
-        self.build_grammar()
-        if isinstance(initial, basestring):
-            if os.path.isfile(initial):
-                self.parse_file(initial)
+    def __init__(self, state=None, actions=None, goal=None, verbosity=1):
+        if isinstance(state, basestring):
+            if os.path.isfile(state):
+                self.parse_file(state)
             else:
-                self.parse_str(initial)
-        else:
-            self.initial = self.initial if initial is None else State(initial)
-        super(RandomProblem1, self).__init__(state=self.initial)
-        self.goal = self.goal if goal is None else goal
-
-    def build_grammar(self):
-        self.loose_grammar = pyp.Forward()
-        self.nested_parens = pyp.nestedExpr('(', ')', content=self.loose_grammar) 
-        self.loose_grammar << (
-                 pyp.OneOrMore(pyp.Optional(':').suppress() + pyp.Word(pyp.alphanums + '-_')) 
-               | pyp.OneOrMore(pyp.Optional('?').suppress() + pyp.Word(pyp.alphanums + '-_')) 
-               | ',' 
-               | self.nested_parens)
+                self.parse_str(state)
+        super(Problem, self).__init__(state=state, actions=actions, verbosity=verbosity)
+        self.goal = goal or State()
 
     def ingest_parsed_strips(self, parse_results):
         self.initial = State()
@@ -344,4 +310,37 @@ class RandomProblem1(RandomWorld):
         return (all(self.state.get(k, None) for k, v in self.goal.iteritems() if v)
                 and not any(self.state.get(k, None)) for k, v in self.goal.iteritems() if not v)
 
+
+class RandomProblem1(Problem):
+    """(define (problem random-pbl1)
+      (:domain random-domain)
+      (:init
+         (S B B) (S C B) (S A C)
+         (R B B) (R C B))
+      (:goal (and (S A A))))
+    """
+    verbosity = 1
+    goal = State([('S', 'A', 'A')])
+    initial = State([('S', 'B', 'B'), ('S', 'C', 'B'), ('S', 'A', 'C'),
+                                     ('R', 'B', 'B'), ('R', 'C', 'B')])
+    actions =  {
+        'op1': {
+            'positive_preconditions': set([('S', 'x1', 'x2'), ('R', 'x3', 'x1')]),
+            'negative_preconditions': set(),
+            'positive_effects': set([('S', 'x2', 'x1'), ('S', 'x1', 'x3')]),  # add-list
+            'negative_effects': set([('R', 'x3', 'x1')]),                     # delete-list
+               },
+        'op2': {
+            'positive_preconditions': set([('S', 'x3', 'x1'), ('R', 'x2', 'x2')]),
+            'negative_preconditions': set(),
+            'positive_effects': set([('S', 'x1', 'x3')]),                     # add-list
+            'negative_effects': set([('S', 'x3', 'x1')]),                     # delete-list
+               },
+        }
+
+    def __init__(self, state=None, actions=None, goal=None, verbosity=None):
+        # because these are defined as class vars
+        # if actions is not None:
+        #     self.actions = dict(actions)
+        return super(RandomProblem1, self).__init__(state=state or self.initial, actions=actions or self.actions, goal=goal or self.goal, verbosity=verbosity)
 
