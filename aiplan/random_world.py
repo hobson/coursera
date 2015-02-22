@@ -57,7 +57,14 @@ defines two actions
 1. op1(x1, x2. x3):
 
 2. op2()
+
+Examples:
+    >>> Problem('domain1_problem1.strips')  # doctest: +NORMALIZE_WHITESPACE
+    <Problem(goal=set([('S', 'A', 'A')]), state=State([('R', 'B', 'B'), ('R', 'C', 'B'), ('S', 'C', 'B'), ('S', 'B', 'B'), ('S', 'A', 'C')]))>
+      for <World(actions={'op1': {'negative_effects': set([('R', 'x3', 'x1')]), 'positive_preconditions': set([('R', 'x3', 'x1'), ('S', 'x1', 'x2')]), 'positive_effects': set([('S', 'x2', 'x1'), ('S', 'x1', 'x3')]), 'parameters': ('x1', 'x2', 'x3'), 'negative_preconditions': set([])}, 'op2': {'negative_effects': set([('S', 'x3', 'x1')]), 'positive_preconditions': set([('R', 'x2', 'x2'), ('S', 'x3', 'x1')]), 'positive_effects': set([('S', 'x1', 'x3')]), 'parameters': ('x1', 'x2', 'x3'), 'negative_preconditions': set([])}})>
+
 """
+from pyparsing import ParseResults
 from pddl import grammar
 import os
 
@@ -85,7 +92,7 @@ class World(object):
         if actions:
             self.actions = dict(actions)
 
-        self.state = State(state) or State()
+        self.state = State(state or State())
 
         self.applicable_actions = set()  # this belongs in the World or State class (not the Domain class)
         self.add_applicable_actions()
@@ -266,12 +273,14 @@ class RandomWorld(World):
     verbosity = 1
     actions =  {
         'op1': {
+            'arguments': ('x1', 'x2', 'x3'),
             'positive_preconditions': set([('S', 'x1', 'x2'), ('R', 'x3', 'x1')]),
             'negative_preconditions': set(),
             'positive_effects': set([('S', 'x2', 'x1'), ('S', 'x1', 'x3')]),  # add-list
             'negative_effects': set([('R', 'x3', 'x1')]),                     # delete-list
                },
         'op2': {
+            'arguments': ('x1', 'x2', 'x3'),
             'positive_preconditions': set([('S', 'x3', 'x1'), ('R', 'x2', 'x2')]),
             'negative_preconditions': set(),
             'positive_effects': set([('S', 'x1', 'x3')]),                     # add-list
@@ -287,28 +296,76 @@ class RandomWorld(World):
 
 
 class Problem(World):
+    goal = State()
+    initial = State()
+
     def __init__(self, state=None, actions=None, goal=None, verbosity=1):
+        self.actions = {}
         if isinstance(state, basestring):
             if os.path.isfile(state):
                 self.parse_file(state)
             else:
                 self.parse_str(state)
-        super(Problem, self).__init__(state=state, actions=actions, verbosity=verbosity)
-        self.goal = goal or State()
+            state = None
+        super(Problem, self).__init__(state=state or self.state, actions=actions or self.actions, verbosity=verbosity)
+        self.initial = self.state
+        self.goal = goal or self.goal or State()
 
-    def ingest_parsed_strips(self, parse_results):
-        self.initial = State()
+
+    def ingest_parse_results(self, parse_results=None):
+        self.parse_results = parse_results or self.parse_results or ParseResults()
+        self.initial =  set(tuple(flu) for flu in self.parse_results.get('init', self.initial))
+        self.state = self.initial
+
+        # FIXME: parser sometimes returns a list of lists and other times returns a list of strings (if there's only one fluent in the goal state!)
+        # FIXME: DRY this up and do the same thing for the initial state in case the parser hoses it up for a single fluent too!
+        self.goal =     [flu if isinstance(flu, basestring) else tuple(flu) for flu in self.parse_results.get('goal', self.goal)]
+        if isinstance(self.goal[0], tuple):
+            self.goal = set(self.goal)
+        else: 
+            self.goal = set([tuple(self.goal)])
+        self.domain_name = iter(k for k in parse_results.keys() if k not in ('init', 'goal')).next()
+        actions = dict(((action_name, dict(((k2, tuple(v3 if isinstance(v3, basestring) else tuple(v3) for v3 in v2.asList())) 
+                            for k2, v2 in action_dict.iteritems()))) 
+                                for action_name, action_dict in self.parse_results[self.domain_name].iteritems()))
+        for name, action in actions.iteritems():
+            self.actions[name] = self.actions.get(name, {})            
+            self.actions[name]['parameters'] = tuple(param[1:] if param.startswith('?') else param for param in action['parameters'])
+            
+            # FIXME: DRY up this repeated code for postprocessing preconditions and effects
+            self.actions[name]['positive_preconditions'], self.actions[name]['negative_preconditions'] = set(), set()
+            polarity = 'positive'
+            for flu in action['precondition']:
+                if flu is 'not':
+                    polarity = 'negative'
+                    continue
+                self.actions[name][polarity + '_preconditions'] |= set([tuple(x[1:] if x.startswith('?') else x for x in flu)])
+                polarity = 'positive'
+
+            self.actions[name]['positive_effects'], self.actions[name]['negative_effects'] = set(), set()
+            polarity = 'positive'
+            for flu in action['effect']:
+                if flu is 'not':
+                    polarity = 'negative'
+                    continue
+                self.actions[name][polarity + '_effects'] |= set([tuple(x[1:] if x.startswith('?') else x for x in flu)])
+                polarity = 'positive'
 
     def parse_file(self, path):
-        self.parsed_strips = self.loose_grammar.parseFile(path)
+        self.parse_results = grammar.parseFile(path)
+        self.ingest_parse_results(self.parse_results)
 
     def parse_str(self, s):
-        self.parsed_strips = self.loose_grammar.parseFile(s)
+        self.parse_results = grammar.parseFile(s)
+        self.ingest_parse_results(self.parse_results)
 
     def goal_test(self):
         # TODO: can probably be simplified into a single all(self.state.get(k, False) == bool(v) for k, v ...)
         return (all(self.state.get(k, None) for k, v in self.goal.iteritems() if v)
                 and not any(self.state.get(k, None)) for k, v in self.goal.iteritems() if not v)
+
+    def __repr__(self):
+        return '<Problem(goal={0}, state={1})>\n  for <World(actions={2})>'.format(self.goal, self.state, self.actions)
 
 
 class RandomProblem1(Problem):
