@@ -23,12 +23,12 @@ FIXME:
     - prob(verbosity=0) doesn't take
 
 Examples:
-    >>> node = astar_search(EightPuzzleProblem(initial=[1,6,4,8,7,0,3,2,5], verbosity=0))                      
+    >>> node = astar_search(NPuzzleProblem(initial=[1,6,4,8,7,0,3,2,5], verbosity=0))                      
     >>> len(node.path())
     23 or 38
     >>> node.depth
     37
-    >>> astar_search(EightPuzzleProblem(initial=[8,1,7,4,5,6,2,0,3], verbosity=0)).depth
+    >>> astar_search(NPuzzleProblem(initial=[8,1,7,4,5,6,2,0,3], verbosity=0)).depth
     81
     >>> # Find the number of unique nodes/states at a given depth (distance) from the goal
     >>> PDDL parser for planning domains and problems then test code on this problem:
@@ -43,24 +43,12 @@ Examples:
      )
     )
     >>> # clearly suboptimal, because getting different answer eacy time
-    >>> min(astar_search(EightPuzzleProblem(initial=[1,6,4,8,7,0,3,2,5], verbosity=0)).depth for i in range(10))
+    >>> min(astar_search(NPuzzleProblem(initial=[1,6,4,8,7,0,3,2,5], verbosity=0)).depth for i in range(10))
     21
-    >>> min(astar_search(EightPuzzleProblem(initial=[8,1,7,4,5,6,2,0,3], verbosity=0)).depth for i in range(10))
+    >>> min(astar_search(NPuzzleProblem(initial=[8,1,7,4,5,6,2,0,3], verbosity=0)).depth for i in range(10))
     25
-    >>> len(nodes_at_depth(EightPuzzleProblem(initial=range(9), verbosity=0), depth=27, verbosity=0))
+    >>> len(nodes_at_depth(NPuzzleProblem(initial=range(9), verbosity=0), depth=27, verbosity=0))
     6274
-
-
-SCRIPS:
-    2 op1 actions are possible
-
-    attempts:
-    - 71,23,24,22,21
-    + 37,81,32,25
-    + 6274
-    + 3,4,6,5
-    - 3,2,1,4,5
-
 """
 
 class Problem(object):
@@ -168,7 +156,7 @@ def shuffled(seq):
         return seq
 
 
-class EightPuzzleProblem(Problem):
+class NPuzzleProblem(Problem):
     """States are a sequence of the digits 0-9
 
     0 represents a blank. 
@@ -203,7 +191,7 @@ class EightPuzzleProblem(Problem):
         self.typ = type(goal) if goal else type(initial) if initial else tuple
         if verbosity is not None:
             self.verbosity = int(verbosity)
-        super(EightPuzzleProblem, self).__init__(initial=self.initial, goal=self.goal, verbosity=self.verbosity)
+        super(NPuzzleProblem, self).__init__(initial=self.initial, goal=self.goal, verbosity=self.verbosity)
 
 
     def actions(self, state, check_reversible=False):
@@ -451,7 +439,7 @@ def nodes_at_depth(problem, initial=None, depth=27, verbosity=1):
     return frontier
 
 initial = swap(range(9), 0, 1)
-prob = EightPuzzleProblem(initial=initial, verbosity=0)
+prob = NPuzzleProblem(initial=initial, verbosity=0)
 goal_2step, explored_1step = astar_search(prob, heuristic=h_npuzzle_manhattan)
 assert(len(goal_2step.path()) == 2)
 # print(goal_node.path())
@@ -459,11 +447,11 @@ assert(len(goal_2step.path()) == 2)
 
 def compare():
     initial = swap(swap(swap(swap(swap(range(9), 0, 1), 1, 2), 2, 5), 5, 4), 4, 7)
-    prob = EightPuzzleProblem(initial=initial, verbosity=0)
+    prob = NPuzzleProblem(initial=initial, verbosity=0)
     goal_manhat, explored_manhat = astar_search(prob, heuristic=h_npuzzle_manhattan)
     # print(goal_manhattan.path())
 
-    prob = EightPuzzleProblem(initial=initial, verbosity=0)
+    prob = NPuzzleProblem(initial=initial, verbosity=0)
     goal_simple, explored_simple = astar_search(prob, heuristic=h_npuzzle_simple)
     # print(goal_simple.path())
     return goal_manhat, explored_manhat, goal_simple, explored_simple
