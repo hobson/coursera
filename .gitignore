@@ -5,3 +5,6 @@ invest1/QSTK*
 *.pdf
 invest1/data/*
 invest1/reports/*
+invest1/*.csv
+.ipynb_checkpoints/
+aima-old/
