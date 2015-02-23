@@ -6,7 +6,8 @@ from queue import PriorityQueue as BuiltinPriorityQueue
 import math
 import random
 from traceback import print_exc
-from aima.search import Node, PriorityQueue
+
+from aima.search import Node, PriorityQueue, memoize
 from pug.decorators import force_hashable
 
 import networkx as nx
@@ -282,6 +283,47 @@ def h_npuzzle_manhattan(node, N2=None, verbosity=None):
 h_npuzzle_manhattan.N2 = None
 h_npuzzle_manhattan.verbosity = 0
 
+def best_first_tree_search(problem, f=h_npuzzle_manhattan):
+    """Search the nodes with the lowest f scores first.
+    You specify the function f(node) that you want to minimize; for example,
+    if f is a heuristic estimate to the goal, then we have greedy best
+    first search; if f is node.depth then we have breadth-first search.
+    There is a subtlety: the line "f = memoize(f, 'f')" means that the f
+    values will be cached on the nodes as they are computed. So after doing
+    a best first search you can examine the f values of the path returned."""
+    f = memoize(f, 'f')
+    node = Node(problem.initial)
+    if problem.goal_test(node):
+        return node
+    # frontier = PriorityQueue(min, f)
+    # frontier.append(node)
+    frontier = BuiltinPriorityQueue()
+    frontier_set = set()
+    frontier.put((f(node), node))
+    frontier_set.add(node)
+    # explored = set()
+    while frontier:
+        print(list(frontier.queue))
+        # print(list(frontier))
+        #node0 = min((f(n[1]), n[1]) for n in frontier)[1]
+        node = frontier.get()[1]
+        frontier_set.discard(node)
+        #assert(node0.state == node.state)
+        if problem.goal_test(node):
+            return node
+        # explored.add(force_hashable(node.state))
+        for child in node.expand(problem):
+            if child not in frontier_set:
+                frontier.put((f(child), child))
+                frontier_set.add(child)
+            # else: 
+            #     incumbent = frontier[child]
+            #     if f(child) < f(incumbent):
+            #         warnings.warn("This shouldn't ever happen, child in frontier but new child has lower cost!\nchild={0}, f(child)={1}, f(incumbent)={2}".format(child, f(child), f(incumbent)))
+            #         del frontier[incumbent]
+            #         frontier.append(child)
+    return None
+
 
 def astar_search(problem, heuristic=h_npuzzle_manhattan):
     """Modified version of Norvig's A* graph search algorithm
@@ -295,7 +337,7 @@ def astar_search(problem, heuristic=h_npuzzle_manhattan):
     There is a subtlety: the line "heuristic = memoize(heuristic, 'heuristic')" means that the heuristic
     values will be cached on the nodes as they are computed. So after doing
     a best first search you can examine the heuristic values of the path returned."""
-    # heuristic = memoize(heuristic, 'heuristic')
+    heuristic = memoize(heuristic, 'heuristic')
     node = Node(problem.initial)
     if problem.goal_test(node):
         return node
