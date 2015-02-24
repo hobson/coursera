@@ -48,6 +48,10 @@ Examples:
     21
     >>> min(astar_search(NPuzzleProblem(initial=[8,1,7,4,5,6,2,0,3], verbosity=0)).depth for i in range(10))
     25
+
+    # This is one of the 2 deepest/hardest configurations and solution should be at a depth of 31
+    # Alexander Reinefeld: http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.40.9889&rep=rep1&type=pdf
+    >>> prob = NPuzzleProblem(initial=tuple([8,7,6,0,4,1,2,5,3]), verbosity=0)
     >>> len(nodes_at_depth(NPuzzleProblem(initial=range(9), verbosity=0), depth=27, verbosity=0))
     6274
 """
@@ -208,11 +212,11 @@ class NPuzzleProblem(Problem):
             possibilities = [swap(state, i0, i0 + 1), swap(state, i0, i0 - self.N)]
         elif i0 == self.N2 - 1:        # bottom-right
             possibilities = [swap(state, i0, i0 - 1), swap(state, i0, i0 - self.N)]
-        elif i0 < self.N:              # noncorner, top edge  (3 actions)
+        elif i0 < self.N - 1:          # noncorner, top edge  (3 actions)
             possibilities = [swap(state, i0, i0 - 1), swap(state, i0, i0 + 1), swap(state, i0, i0 + self.N)]
         elif i0 > self.N2 - self.N:    # noncorner, bottom edge  (3 actions)
             possibilities = [swap(state, i0, i0 - 1), swap(state, i0, i0 + 1), swap(state, i0, i0 - self.N)]
-        elif not i0 % self.N:          # noncorner left edge
+        elif i0 % self.N == 0:          # noncorner left edge
             possibilities = [swap(state, i0, i0 - self.N), swap(state, i0, i0 + self.N), swap(state, i0, i0 + 1)]
         elif i0 % self.N == (self.N - 1):          # noncorner right edge
             possibilities = [swap(state, i0, i0 - self.N), swap(state, i0, i0 + self.N), swap(state, i0, i0 - 1)]
@@ -276,7 +280,7 @@ def h_npuzzle_manhattan(node, N2=None, verbosity=None):
     distance = 0 
     for tile in range(1, N2):
         pos = state.index(tile)
-        distance += abs(pos % N - tile % N) + abs(pos / N - tile / N)
+        distance += abs(pos % N - tile % N) + abs(int(pos / N) - int(tile / N))
     if verbosity:
         print('h_npuzzle_manhattan(node.state={0}, N2={1}) distance = {2}'.format(state, N2, distance))
     return depth + distance 
@@ -337,6 +341,7 @@ def astar_search(problem, heuristic=h_npuzzle_manhattan):
     There is a subtlety: the line "heuristic = memoize(heuristic, 'heuristic')" means that the heuristic
     values will be cached on the nodes as they are computed. So after doing
     a best first search you can examine the heuristic values of the path returned."""
+    max_depth = 0
     heuristic = memoize(heuristic, 'heuristic')
     node = Node(problem.initial)
     if problem.goal_test(node):
@@ -346,6 +351,9 @@ def astar_search(problem, heuristic=h_npuzzle_manhattan):
     explored = set()
     while frontier:
         node = frontier.pop()
+        if node.depth > max_depth:
+            max_depth = node.depth
+            print(max_depth, len(frontier))
         if problem.goal_test(node):
             return node, explored
         explored.add(force_hashable(node.state))
@@ -480,10 +488,10 @@ def nodes_at_depth(problem, initial=None, depth=27, verbosity=1):
             print(len(children))
     return frontier
 
-initial = swap(range(9), 0, 1)
-prob = NPuzzleProblem(initial=initial, verbosity=0)
-goal_2step, explored_1step = astar_search(prob, heuristic=h_npuzzle_manhattan)
-assert(len(goal_2step.path()) == 2)
+# initial = swap(range(9), 0, 1)
+# prob = NPuzzleProblem(initial=initial, verbosity=0)
+# goal_2step, explored_1step = astar_search(prob, heuristic=h_npuzzle_manhattan)
+# assert(len(goal_2step.path()) == 2)
 # print(goal_node.path())
 
 
