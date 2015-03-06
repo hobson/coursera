@@ -50,7 +50,7 @@ Examples:
     25
 
     # This is one of the 2 deepest/hardest configurations and solution should be at a depth of 31
-    # Alexander Reinefeld: http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.40.9889&rep=rep1&type=pdf
+    # 1995?, Alexander Reinefeld: http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.40.9889&rep=rep1&type=pdf
     >>> prob = NPuzzleProblem(initial=tuple([8,7,6,0,4,1,2,5,3]), verbosity=0)
     >>> len(nodes_at_depth(NPuzzleProblem(initial=range(9), verbosity=0), depth=27, verbosity=0))
     6274
