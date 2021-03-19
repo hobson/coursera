@@ -2,7 +2,7 @@ aima
 # sudo yum install SDL-devel SDL2-devel mediainfo pygame-devel pygame
 # pip install pygame
 -e hg+http://bitbucket.org/pygame/pygameDjango==1.5.8
-Jinja2==2.7.3
+Jinja2==2.11.3
 MarkupSafe==0.23
 QSTK==0.2.8
 Quandl==2.0
