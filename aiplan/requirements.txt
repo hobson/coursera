@@ -6,7 +6,7 @@ Jinja2==2.7.3
 MarkupSafe==0.23
 QSTK==0.2.8
 Quandl==2.0
-Scrapy==0.22.2
+Scrapy==2.6.1
 South==0.8.4
 Twisted==14.0.2
 Unidecode==0.04.16
