@@ -8,7 +8,7 @@ QSTK==0.2.8
 Quandl==2.0
 Scrapy==0.22.2
 South==0.8.4
-Twisted==14.0.2
+Twisted==22.10.0
 Unidecode==0.04.16
 -e git+git@github.com:hobson/aima-python.git@aa62013ae002acc88b0f3d02900de6b9f23c46ad#egg=aima-master
 backports.ssl-match-hostname==3.4.0.2
