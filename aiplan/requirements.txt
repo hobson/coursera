@@ -12,7 +12,7 @@ Twisted==14.0.2
 Unidecode==0.04.16
 -e git+git@github.com:hobson/aima-python.git@aa62013ae002acc88b0f3d02900de6b9f23c46ad#egg=aima-master
 backports.ssl-match-hostname==3.4.0.2
-certifi==14.5.14
+certifi==2022.12.7
 cffi==0.8.6
 chardet==2.3.0
 cryptography==0.6.1
